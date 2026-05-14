@@ -222,9 +222,9 @@ poll() {
     local payload
     payload=$(awk -v u5="$s5h_util" -v r5="$s5h_reset" -v u7="$s7d_util" -v r7="$s7d_reset" -v st="$status" -v now="$now" \
         'BEGIN {
-            sp = sprintf("%.0f", u5 * 100);
+            sp = (u5*100 == int(u5*100)) ? u5*100 : int(u5*100)+1;
             sr = (r5 - now) / 60; sr = sr > 0 ? sprintf("%.0f", sr) : 0;
-            wp = sprintf("%.0f", u7 * 100);
+            wp = (u7*100 == int(u7*100)) ? u7*100 : int(u7*100)+1;
             wr = (r7 - now) / 60; wr = wr > 0 ? sprintf("%.0f", wr) : 0;
             printf "{\"s\":%s,\"sr\":%s,\"w\":%s,\"wr\":%s,\"st\":\"%s\",\"ok\":true}", sp, sr, wp, wr, st;
         }')
