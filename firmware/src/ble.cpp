@@ -59,11 +59,7 @@ static void start_advertising() {
     NimBLEAdvertising* adv = NimBLEDevice::getAdvertising();
     adv->reset();
     adv->addServiceUUID(SERVICE_UUID);
-#if defined(BOARD_S3BOX)
     adv->setAppearance(0x0080);  // generic computer — avoids HID auto-pair on bluez
-#else
-    adv->setAppearance(HID_KEYBOARD);
-#endif
     adv->enableScanResponse(true);
     adv->setName(DEVICE_NAME);
     bool ok = adv->start();
@@ -111,16 +107,12 @@ class ReqCallbacks : public NimBLECharacteristicCallbacks {
 
 void ble_init(void) {
     NimBLEDevice::init(DEVICE_NAME);
-#if defined(BOARD_S3BOX)
     // The BOX build skips HID so bluez has no reason to auto-pair. No bonding
     // keeps the connection unencrypted and lets the daemon write straight to
     // the custom characteristic. Pairing was failing with AuthenticationFailed
     // on bluez during HID auto-encryption, tearing the connection down before
     // the first GATT write completed.
     NimBLEDevice::setSecurityAuth(false, false, false);
-#else
-    NimBLEDevice::setSecurityAuth(true, false, true);  // bonding, no MITM, SC
-#endif
 
     // Format MAC address
     NimBLEAddress addr = NimBLEDevice::getAddress();
@@ -133,16 +125,6 @@ void ble_init(void) {
     static ServerCallbacks serverCb;
     server->setCallbacks(&serverCb);
 
-#if !defined(BOARD_S3BOX)
-    // --- HID keyboard service ---
-    hid_dev = new NimBLEHIDDevice(server);
-    hid_dev->setReportMap((uint8_t*)HID_REPORT_MAP, sizeof(HID_REPORT_MAP));
-    hid_dev->setManufacturer("Anthropic");
-    hid_dev->setPnp(0x02, 0x05AC, 0x820A, 0x0210);  // BT SIG, generic keyboard
-    hid_dev->setHidInfo(0x00, 0x02);  // country=0, flags=normally connectable
-    hid_dev->setBatteryLevel(100);
-    input_kbd = hid_dev->getInputReport(1);  // report ID 1
-#endif
 
     // --- Custom data service ---
     NimBLEService* svc = server->createService(SERVICE_UUID);

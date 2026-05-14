@@ -5,30 +5,15 @@
 #include "icons.h"
 #include "display_cfg.h"
 
-// Custom fonts (scaled for 314 PPI, ~1.9x from original 165 PPI)
-LV_FONT_DECLARE(font_tiempos_56);
-LV_FONT_DECLARE(font_styrene_48);
 LV_FONT_DECLARE(font_styrene_28);
-LV_FONT_DECLARE(font_styrene_24);
 LV_FONT_DECLARE(font_styrene_20);
-LV_FONT_DECLARE(font_mono_32);
 
-#if defined(BOARD_S3BOX)
-// On the 320x240 panel we drop down to the next available sizes.
 #define FONT_TITLE   font_styrene_28
 #define FONT_BIG     font_styrene_28
 #define FONT_MEDIUM  font_styrene_20
 #define FONT_SMALL   font_styrene_20
 #define FONT_TINY    font_styrene_20
 #define FONT_ANIM    font_styrene_20
-#else
-#define FONT_TITLE   font_tiempos_56
-#define FONT_BIG     font_styrene_48
-#define FONT_MEDIUM  font_styrene_28
-#define FONT_SMALL   font_styrene_24
-#define FONT_TINY    font_styrene_20
-#define FONT_ANIM    font_mono_32
-#endif
 
 // Anthropic brand palette — design tokens live in theme.h
 #include "theme.h"
@@ -42,7 +27,6 @@ LV_FONT_DECLARE(font_mono_32);
 #define COL_RED       THEME_RED
 #define COL_BAR_BG    THEME_BAR_BG
 
-#if defined(BOARD_S3BOX)
 // ---- Layout constants for 320x240 ----
 #define SCR_W         320
 #define SCR_H         240
@@ -50,15 +34,6 @@ LV_FONT_DECLARE(font_mono_32);
 #define TITLE_Y       6
 #define CONTENT_Y     36
 #define CONTENT_W     (SCR_W - 2 * MARGIN)
-#else
-// ---- Layout constants for 480x480 (scaled for 2.16" high-DPI + rounded corners) ----
-#define SCR_W         480
-#define SCR_H         480
-#define MARGIN        20    // wider margin for rounded display corners
-#define TITLE_Y       30
-#define CONTENT_Y     100
-#define CONTENT_W     (SCR_W - 2 * MARGIN)   // 440
-#endif
 
 // ---- Usage screen widgets ----
 static lv_obj_t* usage_container;
@@ -175,17 +150,10 @@ static lv_obj_t* make_panel(lv_obj_t* parent, int x, int y, int w, int h) {
     lv_obj_set_style_bg_opa(panel, LV_OPA_COVER, 0);
     lv_obj_set_style_radius(panel, 8, 0);
     lv_obj_set_style_border_width(panel, 0, 0);
-#if defined(BOARD_S3BOX)
     lv_obj_set_style_pad_left(panel, 10, 0);
     lv_obj_set_style_pad_right(panel, 10, 0);
     lv_obj_set_style_pad_top(panel, 5, 0);
     lv_obj_set_style_pad_bottom(panel, 5, 0);
-#else
-    lv_obj_set_style_pad_left(panel, 16, 0);
-    lv_obj_set_style_pad_right(panel, 16, 0);
-    lv_obj_set_style_pad_top(panel, 12, 0);
-    lv_obj_set_style_pad_bottom(panel, 12, 0);
-#endif
     lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
     // Bubble click events up to the screen / usage_container so a tap anywhere
     // on the panel fires the global click handler.
@@ -254,13 +222,8 @@ static void init_battery_icons(void) {
 
 // ======== Usage Screen (480x480) ========
 
-#if defined(BOARD_S3BOX)
 #define PANEL_H     78
 #define PANEL_GAP   6
-#else
-#define PANEL_H     150
-#define PANEL_GAP   16
-#endif
 
 // One Session/Weekly panel: big % label, pill on the right, bar, reset label.
 // Pill y=1: symmetric inside the panel — panel-outer-top → pill-top equals
@@ -279,21 +242,12 @@ static void make_usage_panel(lv_obj_t* parent, int y, const char* pill_text,
     *out_pill = make_pill(panel, pill_text);
     lv_obj_align(*out_pill, LV_ALIGN_TOP_RIGHT, 0, -3);
 
-#if defined(BOARD_S3BOX)
     *out_bar = make_bar(panel, 0, 32, CONTENT_W - 32, 14);
     *out_reset = lv_label_create(panel);
     lv_label_set_text(*out_reset, "---");
     lv_obj_set_style_text_font(*out_reset, &FONT_MEDIUM, 0);
     lv_obj_set_style_text_color(*out_reset, COL_DIM, 0);
     lv_obj_set_pos(*out_reset, 0, 52);
-#else
-    *out_bar = make_bar(panel, 0, 56, CONTENT_W - 32, 24);
-    *out_reset = lv_label_create(panel);
-    lv_label_set_text(*out_reset, "---");
-    lv_obj_set_style_text_font(*out_reset, &FONT_MEDIUM, 0);
-    lv_obj_set_style_text_color(*out_reset, COL_DIM, 0);
-    lv_obj_set_pos(*out_reset, 0, 94);
-#endif
 }
 
 static void init_usage_screen(lv_obj_t* scr) {
@@ -323,11 +277,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_label_set_text(lbl_anim, "");
     lv_obj_set_style_text_font(lbl_anim, &FONT_ANIM, 0);
     lv_obj_set_style_text_color(lbl_anim, COL_ACCENT, 0);
-#if defined(BOARD_S3BOX)
     lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -4);
-#else
-    lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -15);
-#endif
 }
 
 // ======== Bluetooth Screen (480x480) ========
@@ -348,19 +298,11 @@ static void init_bluetooth_screen(lv_obj_t* scr) {
     lv_obj_set_style_text_color(lbl_ble_title, COL_TEXT, 0);
     lv_obj_align(lbl_ble_title, LV_ALIGN_TOP_MID, 16, TITLE_Y);
 
-#if defined(BOARD_S3BOX)
     const int INFO_H  = 100;
     const int RESET_H = 60;
     const int STATUS_FX = 36;
     const int DEV_Y   = 38;
     const int MAC_Y   = 62;
-#else
-    const int INFO_H  = 160;
-    const int RESET_H = 110;
-    const int STATUS_FX = 56;
-    const int DEV_Y   = 64;
-    const int MAC_Y   = 100;
-#endif
     lv_obj_t* p_info = make_panel(ble_container, MARGIN, CONTENT_Y, CONTENT_W, INFO_H);
 
     // Bluetooth icon + status row
@@ -455,13 +397,11 @@ void ui_init(void) {
     lv_image_set_src(battery_img, &battery_dscs[0]);
     lv_obj_set_pos(battery_img, SCR_W - 48 - MARGIN, TITLE_Y);
 
-#if defined(BOARD_S3BOX)
     // The 80x80 brand logo and battery indicator don't fit (and aren't
     // applicable) on the 320x240 BOX. Hide both — the title label alone
     // identifies the screen.
     lv_obj_add_flag(logo_img, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-#endif
 }
 
 void ui_update(const UsageData* data) {
@@ -516,13 +456,8 @@ static screen_t prev_non_splash_screen = SCREEN_USAGE;
 // noisy over the pixel-art creature animations.
 static void apply_battery_visibility(void) {
     if (!battery_img) return;
-#if defined(BOARD_S3BOX)
     // No battery on the BOX — icon stays hidden in every screen.
     lv_obj_add_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-#else
-    if (current_screen == SCREEN_SPLASH) lv_obj_add_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-    else                                  lv_obj_clear_flag(battery_img, LV_OBJ_FLAG_HIDDEN);
-#endif
 }
 
 // LVGL handles click debouncing internally. Screen-level handler fires when
@@ -554,12 +489,7 @@ void ui_show_screen(screen_t screen) {
 
     // Hide the logo overlay on the splash screen so the animation has a clean canvas
     if (logo_img) {
-#if defined(BOARD_S3BOX)
         lv_obj_add_flag(logo_img, LV_OBJ_FLAG_HIDDEN);
-#else
-        if (screen == SCREEN_SPLASH) lv_obj_add_flag(logo_img, LV_OBJ_FLAG_HIDDEN);
-        else                          lv_obj_clear_flag(logo_img, LV_OBJ_FLAG_HIDDEN);
-#endif
     }
 
     if (screen != SCREEN_SPLASH) prev_non_splash_screen = screen;

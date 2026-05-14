@@ -3,7 +3,6 @@
 #include <Arduino.h>
 #include <Wire.h>
 
-#if defined(BOARD_S3BOX)
 
 // TT21100 touch frame (empirical layout on the BOX panel):
 //   [0..1]  data_len (LE) — 17 for one touch present, ~7 for idle
@@ -48,4 +47,3 @@ bool tt21100_read(uint16_t *x, uint16_t *y) {
     return true;
 }
 
-#endif

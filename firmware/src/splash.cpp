@@ -8,18 +8,11 @@
 
 // 20x20 grid upscaled to fill the panel.
 #define GRID         20
-#if defined(BOARD_S3BOX)
 // 320x240 panel — cell 12 yields a 240x240 canvas, full panel height,
 // 40px sidebars on the 320 axis.
 #define CELL         12
 #define SCREEN_W     320
 #define SCREEN_H     240
-#else
-// 480x480 panel — cell 24 fills the screen exactly.
-#define CELL         24
-#define SCREEN_W     480
-#define SCREEN_H     480
-#endif
 #define CANVAS_W     (GRID * CELL)
 #define CANVAS_H     (GRID * CELL)
 
