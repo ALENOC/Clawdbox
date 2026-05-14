@@ -277,7 +277,7 @@ static void make_usage_panel(lv_obj_t* parent, int y, const char* pill_text,
     lv_obj_set_pos(*out_pct, 0, 0);
 
     *out_pill = make_pill(panel, pill_text);
-    lv_obj_align(*out_pill, LV_ALIGN_TOP_RIGHT, 0, 1);
+    lv_obj_align(*out_pill, LV_ALIGN_TOP_RIGHT, 0, -8);
 
 #if defined(BOARD_S3BOX)
     *out_bar = make_bar(panel, 0, 32, CONTENT_W - 32, 14);
