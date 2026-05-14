@@ -275,7 +275,26 @@ void setup() {
     delay(300);
     Serial.println("{\"ready\":true}");
 
+    // Probe raw I2C line levels BEFORE driver init.
+    pinMode(IIC_SDA, INPUT);
+    pinMode(IIC_SCL, INPUT);
+    delay(5);
+    int sda_pre = digitalRead(IIC_SDA);
+    int scl_pre = digitalRead(IIC_SCL);
+    Serial.printf("I2C-PROBE-PRE: SDA(GPIO%d)=%d SCL(GPIO%d)=%d\n",
+                  IIC_SDA, sda_pre, IIC_SCL, scl_pre);
+
     // Init I2C (shared by touch + PMU)
+    Wire.begin(IIC_SDA, IIC_SCL);
+
+    delay(20);
+    pinMode(IIC_SDA, INPUT);
+    pinMode(IIC_SCL, INPUT);
+    delay(5);
+    int sda_post = digitalRead(IIC_SDA);
+    int scl_post = digitalRead(IIC_SCL);
+    Serial.printf("I2C-PROBE-POST: SDA=%d SCL=%d (1,1=ok; 0,1=slave holds SDA; 1,0=SCL stuck; 0,0=short/no pullups)\n",
+                  sda_post, scl_post);
     Wire.begin(IIC_SDA, IIC_SCL);
 
 
