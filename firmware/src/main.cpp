@@ -1,21 +1,24 @@
 #include <Arduino.h>
 #include <lvgl.h>
-#include <ArduinoJson.h>
 #include "display_cfg.h"
 #include "data.h"
 #include "ui.h"
-#include "ble.h"
 #include "power.h"
 #include "imu.h"
 #include "splash.h"
 #include "usage_rate.h"
 #include "touch_tt21100.h"
+#include "wifi_cfg.h"
+#include "net.h"
+#include "poll.h"
 
 // Physical inputs on ESP32-S3-BOX:
-//   BTN_BACK (GPIO 0, BOOT momentary)  — cycle screen / advance splash
-//   BTN_FWD  (GPIO 1, mute slider)     — sends Shift+Tab on each flip
+//   BTN_BACK (GPIO 0, BOOT momentary)  — cycle screen / advance splash;
+//                                        long-press (>5s) → clear NVS + reboot
+//   BTN_FWD  (GPIO 1, mute slider)     — manual poll trigger
 #define BTN_BACK 0
 #define BTN_FWD  1
+#define BTN_LONG_PRESS_MS 5000
 
 Arduino_DataBus *bus = new Arduino_ESP32SPI(
     LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, -1 /* MISO */, FSPI);
@@ -80,24 +83,6 @@ static void my_touch_cb(lv_indev_t* indev, lv_indev_data_t* data) {
     } else {
         data->state = LV_INDEV_STATE_RELEASED;
     }
-}
-
-static bool parse_json(const char* json, UsageData* out) {
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, json);
-    if (err) {
-        Serial.printf("JSON parse error: %s\n", err.c_str());
-        return false;
-    }
-
-    out->session_pct = doc["s"] | 0.0f;
-    out->session_reset_mins = doc["sr"] | -1;
-    out->weekly_pct = doc["w"] | 0.0f;
-    out->weekly_reset_mins = doc["wr"] | -1;
-    strlcpy(out->status, doc["st"] | "unknown", sizeof(out->status));
-    out->ok = doc["ok"] | false;
-    out->valid = true;
-    return true;
 }
 
 #define CMD_BUF_SIZE 64
@@ -210,55 +195,80 @@ void setup() {
     lv_indev_set_type(indev, LV_INDEV_TYPE_POINTER);
     lv_indev_set_read_cb(indev, my_touch_cb);
 
-    ble_init();
+    cfg_init();
+    net_init();
+    poll_init();
 
     pinMode(BTN_BACK, INPUT_PULLUP);
     pinMode(BTN_FWD,  INPUT_PULLUP);
 
     ui_init();
-    ui_update_ble_status(ble_get_state(), ble_get_device_name(), ble_get_mac_address());
+    ui_update_net_status(net_get_state(), net_get_ssid(), net_get_ip(), net_get_rssi());
     ui_update_battery(power_battery_pct(), power_is_charging());
     ui_show_screen(SCREEN_SPLASH);
 
-    Serial.println("Dashboard ready, waiting for data on BLE...");
+    Serial.println("Dashboard ready, connecting WiFi...");
 }
 
-static ble_state_t last_ble_state = BLE_STATE_INIT;
+static net_state_t last_net_state = NET_STATE_INIT;
 
 void loop() {
     touch_read();
     lv_timer_handler();
     ui_tick_anim();
-    ble_tick();
+    net_tick();
     power_tick();
     imu_tick();
     splash_tick();
 
-    // Physical inputs: BOOT cycles screens, slider sends Shift+Tab on flip.
     {
         static bool back_was = false, fwd_was = false;
+        static uint32_t back_down_ms = 0;
+        static bool long_fired = false;
         bool back_now = (digitalRead(BTN_BACK) == LOW);
         bool fwd_now  = (digitalRead(BTN_FWD)  == LOW);
 
         if (back_now != back_was) {
             if (back_now) {
+                back_down_ms = millis();
+                long_fired = false;
+            } else if (!long_fired) {
                 if (ui_get_current_screen() == SCREEN_SPLASH) ui_show_screen(SCREEN_USAGE);
                 else                                          ui_cycle_screen();
             }
             back_was = back_now;
         }
+        if (back_now && !long_fired && millis() - back_down_ms > BTN_LONG_PRESS_MS) {
+            long_fired = true;
+            Serial.println("Long-press BOOT: clearing config, rebooting");
+            cfg_clear();
+            delay(200);
+            ESP.restart();
+        }
         if (fwd_now != fwd_was) {
-            ble_keyboard_press(0x2B, 0x02);
-            delay(10);
-            ble_keyboard_release();
+            if (fwd_now && net_get_state() == NET_STATE_CONNECTED) {
+                Serial.println("Manual poll trigger");
+                if (poll_force_now(&usage)) {
+                    usage_rate_sample(usage.session_pct);
+                    ui_update(&usage);
+                }
+            }
             fwd_was = fwd_now;
         }
     }
 
-    ble_state_t bs = ble_get_state();
-    if (bs != last_ble_state) {
-        last_ble_state = bs;
-        ui_update_ble_status(bs, ble_get_device_name(), ble_get_mac_address());
+    net_state_t ns = net_get_state();
+    static const char* last_ssid = "";
+    static const char* last_ip   = "";
+    static int last_rssi = -999;
+    int rssi = net_get_rssi();
+    if (ns != last_net_state || last_ssid != net_get_ssid() ||
+        last_ip != net_get_ip() || last_rssi != rssi) {
+        last_net_state = ns;
+        last_ssid = net_get_ssid();
+        last_ip   = net_get_ip();
+        last_rssi = rssi;
+        ui_update_net_status(ns, last_ssid, last_ip, rssi);
     }
 
     static int last_pct = -2;
@@ -273,21 +283,18 @@ void loop() {
 
     check_serial_cmd();
 
-    if (ble_has_data()) {
-        if (parse_json(ble_get_data(), &usage)) {
-            int g_before = usage_rate_group();
-            usage_rate_sample(usage.session_pct);
-            int g_after = usage_rate_group();
-            if (g_after != g_before) {
-                Serial.printf("usage rate: group %d -> %d (s=%.2f%%)\n",
-                    g_before, g_after, usage.session_pct);
-                if (splash_is_active()) splash_pick_for_current_rate();
-            }
-            ui_update(&usage);
-            ble_send_ack();
-        } else {
-            ble_send_nack();
+    bool updated = false;
+    poll_tick(&usage, &updated);
+    if (updated) {
+        int g_before = usage_rate_group();
+        usage_rate_sample(usage.session_pct);
+        int g_after = usage_rate_group();
+        if (g_after != g_before) {
+            Serial.printf("usage rate: group %d -> %d (s=%.2f%%)\n",
+                          g_before, g_after, usage.session_pct);
+            if (splash_is_active()) splash_pick_for_current_rate();
         }
+        ui_update(&usage);
     }
 
     delay(5);

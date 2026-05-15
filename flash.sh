@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build and flash firmware to the SC01 Plus.
+# Build and flash firmware to the ESP32-S3-BOX.
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

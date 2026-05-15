@@ -2,182 +2,112 @@
 
 A small ESP32 dashboard I made for my desk to keep an eye on Claude Code usage.
 
-It runs on a [Waveshare ESP32-S3-Touch-AMOLED-2.16](https://www.waveshare.com/esp32-s3-touch-amoled-2.16.htm?&aff_id=149786) and pairs with my laptop over Bluetooth, and the splash screen plays pixel-art Clawd animations that get
-busier when your usage rate climbs. The two side buttons send Space and
-Shift+Tab over BLE HID for Claude Code's voice mode and mode-toggle shortcuts.
+It runs on an **Espressif ESP32-S3-BOX**, connects to your WiFi, and polls the Anthropic API directly for rate-limit utilization. No host daemon required.
 
-|              Usage meter              |              Clawd animation screen              |
-| :-----------------------------------: | :----------------------------------------------: |
-| ![Usage meter](assets/demo.jpeg) | ![Clawd animation screen](assets/demo.gif) |
+The splash screen plays pixel-art Clawd animations that get busier when your usage rate climbs.
 
 The Clawd animations come from [claudepix](https://claudepix.vercel.app), [@amaanbuilds](https://x.com/amaanbuilds)'s library of pixel-art Clawd sprites, check it out, it's lovely.
 
 ## Screens
 
-The device boots into the splash and stays there until you press the middle (PWR) button, which cycles between Usage and Bluetooth. Tap the screen anywhere (except the Reset zone on the Bluetooth screen) to flip back to the splash; tap again to dismiss it.
+The device boots into the splash and stays there until you press the BOOT button, which cycles between Usage and Network. Tap the screen anywhere (except the Reset zone on the Network screen) to flip back to the splash; tap again to dismiss it.
 
-|              Splash               |              Usage              |                Bluetooth                |
-| :-------------------------------: | :-----------------------------: | :-------------------------------------: |
-| ![Splash](screenshots/splash.png) | ![Usage](screenshots/usage.png) | ![Bluetooth](screenshots/bluetooth.png) |
-|   Splash; touch-toggle anytime    | Session and weekly utilization  |    Connection status and bond reset     |
-
-While the splash is up, the middle button cycles animations instead of screens. The firmware also auto-rotates every 20 s within the current usage-rate group, so a long stretch on the splash isn't just one Clawd on loop.
+While the splash is up, BOOT cycles animations instead of screens.
 
 ## Hardware
 
-- [Waveshare ESP32-S3-Touch-AMOLED-2.16](https://www.waveshare.com/esp32-s3-touch-amoled-2.16.htm?&aff_id=149786) - ESP32-S3R8, 2.16" 480×480 AMOLED (CO5300 QSPI), CST9220 cap touch, AXP2101 PMU + Li-Po battery, QMI8658 IMU
-- USB-C cable for flashing firmware and charging
-- 3.7V Li-Po battery (MX1.25 2-pin connector, optional)
+- Espressif ESP32-S3-BOX (320×240 IPS, ILI9342C, TT21100 cap touch)
+- USB-C cable for flashing
 
 ## Prerequisites
 
-- Linux (tested on Ubuntu)
 - [PlatformIO CLI](https://docs.platformio.org/en/latest/core/installation/index.html)
-- `curl`, `bluetoothctl`, `busctl` (BlueZ Bluetooth stack)
-- Claude Code with an active subscription
-
-## MacOS support
-
-MacOS is fully supported, that is as soon as you prompt it and create a pull request for it!
-
-I run Linux myself so it's harder for me to test this but anyone who wants MacOS support is welcome to contribute.
+- Claude Code with an active subscription (for OAuth tokens)
 
 ## Flash the firmware
 
 ```bash
 cd firmware
-pio run -t upload --upload-port /dev/ttyACM0
+pio run -e s3box -t upload --upload-port /dev/ttyACM0
 ```
 
-## Bluetooth pairing
-
-After flashing, the device advertises as "Claude Controller". Pair it once:
+Or use the helper:
 
 ```bash
-# Scan for the device
-bluetoothctl scan le
-
-# When "Claude Controller" appears, pair and trust it
-bluetoothctl pair F4:12:FA:C0:8F:E5    # use your device's MAC
-bluetoothctl trust F4:12:FA:C0:8F:E5
+./flash.sh /dev/ttyACM0
 ```
 
-The MAC address is shown on the Bluetooth screen — press the middle (PWR) button to cycle to it.
+## First-boot setup
 
-## Install the daemon
+1. After a fresh flash (or after a config reset), the device starts a WiFi access point named **`Clawdmeter-setup`** (open, no password).
+2. Connect a phone or laptop to that AP. Most OSes auto-open the captive portal at `http://192.168.4.1/`; if not, browse there manually.
+3. Fill the form:
+   - **SSID / Password** — your home WiFi
+   - **accessToken / refreshToken / expiresAt** — copy from `~/.claude/.credentials.json` on a host that's logged in to Claude Code
+4. Submit. The device reboots and connects to your WiFi.
+5. From then on, the device refreshes its OAuth token autonomously every ~hour.
 
-The daemon polls your Claude usage every 60 seconds and sends it to the display over BLE.
+## Reset
 
-```bash
-./install.sh
-systemctl --user start claude-usage-daemon
-```
+- **Reset config** tap zone on the Network screen — clears NVS and reboots into setup AP.
+- Or long-press the **BOOT** button for >5 seconds.
 
-Check status: `systemctl --user status claude-usage-daemon`
+## Security note
 
-View logs: `journalctl --user -u claude-usage-daemon -f`
+OAuth tokens are stored in NVS in plaintext. The device has no remote attack surface, but anyone with USB access can extract NVS contents with `esptool.py read_flash`. **Before lending, gifting, or recycling the device, run a config reset** (long-press BOOT >5s or use the Reset config tap zone) and revoke the token at <https://console.anthropic.com>.
 
 ## How it works
 
-1. The daemon reads your Claude Code OAuth token from `~/.claude/.credentials.json`.
-2. It makes a minimal API call to `api.anthropic.com/v1/messages` — one token of Haiku, basically free.
-3. The usage numbers come straight out of the response headers (`anthropic-ratelimit-unified-5h-utilization` and friends).
-4. The daemon connects to the ESP32 over BLE and writes a JSON payload to the GATT RX characteristic.
-5. The firmware parses it and updates the LVGL dashboard.
-6. The firmware also tracks the rate of change of session % over a 5-minute window and picks splash animations from the matching mood group.
-7. The two side buttons are independent of all of this — they send Space and Shift+Tab as BLE HID keyboard input to the paired host directly.
+1. Firmware connects to WiFi using credentials saved in NVS.
+2. NTP sync sets the clock (needed for OAuth expiry math).
+3. Every 60 s, the device POSTs a 1-token probe to `https://api.anthropic.com/v1/messages` and reads rate-limit headers (`anthropic-ratelimit-unified-5h-utilization` and friends) — same trick the host daemon used to play.
+4. When the saved access token nears expiry, the device hits `https://console.anthropic.com/v1/oauth/token` with its refresh token and persists the rotated pair.
+5. UI tracks the rate of change of session % over a sliding window and picks splash animations from the matching mood group.
 
 ## Physical buttons
 
-The board has three side buttons. Left and right do the same thing on every screen; the middle button is screen-aware.
-
-| Button           | GPIO         | Function                                                       |
-| ---------------- | ------------ | -------------------------------------------------------------- |
-| **Left**         | GPIO 0       | Hold to send Space (Claude Code voice-mode push-to-talk)       |
-| **Middle** (PWR) | AXP2101 PKEY | Cycle screens (Usage ↔ Bluetooth); on splash, cycle animations |
-| **Right**        | GPIO 18      | Press to send Shift+Tab (Claude Code mode toggle)              |
-
-Space and Shift+Tab go out as standard BLE HID keyboard reports, so they trigger in whatever window has focus on the paired host — not just Claude Code.
-
-## BLE protocol
-
-The device advertises a custom GATT service alongside the standard HID keyboard service:
-
-|                            | UUID                                   |
-| -------------------------- | -------------------------------------- |
-| **Data Service**           | `4c41555a-4465-7669-6365-000000000001` |
-| RX Characteristic (write)  | `4c41555a-4465-7669-6365-000000000002` |
-| TX Characteristic (notify) | `4c41555a-4465-7669-6365-000000000003` |
-| **HID Service**            | `00001812-0000-1000-8000-00805f9b34fb` |
-
-JSON payload format (written to RX):
-
-```json
-{ "s": 45, "sr": 120, "w": 28, "wr": 7200, "st": "allowed", "ok": true }
-```
-
-Fields: `s` = session %, `sr` = session reset (minutes), `w` = weekly %, `wr` = weekly reset (minutes), `st` = status, `ok` = success flag.
+| Button       | GPIO   | Function                                                       |
+| ------------ | ------ | -------------------------------------------------------------- |
+| **BOOT**     | GPIO 0 | Cycle screens / advance splash; long-press (>5s) → reset config |
+| **Mute slider** | GPIO 1 | Manual poll trigger                                            |
 
 ## Recompiling fonts
 
-The `firmware/src/font_*.c` files are pre-compiled LVGL bitmap fonts. Sizes
-are roughly 1.9× larger than the Panlee 165 PPI panel this project started on,
-to match the 314 PPI of the 2.16" AMOLED.
+The `firmware/src/font_*.c` files are pre-compiled LVGL bitmap fonts.
 
 ```bash
 npm install -g lv_font_conv
 ```
 
-Generate each one (one at a time — `lv_font_conv` doesn't like loop-driven invocations) with `--no-compress` (required for LVGL 9):
+Generate with `--no-compress` (required for LVGL 9):
 
 ```bash
-# Tiempos Text (titles, 56px)
-lv_font_conv --font assets/TiemposText-400-Regular.otf -r 0x20-0x7E \
-  --size 56 --format lvgl --bpp 4 --no-compress \
-  -o firmware/src/font_tiempos_56.c --lv-include "lvgl.h"
-
-# Styrene B (large numbers 48, panel labels 28, small text 24, minimal 20)
-for size in 48 28 24 20; do
+for size in 28 20; do
   lv_font_conv --font assets/StyreneB-Regular.otf -r 0x20-0x7E \
     --size $size --format lvgl --bpp 4 --no-compress \
     -o firmware/src/font_styrene_${size}.c --lv-include "lvgl.h"
 done
-
-# DejaVu Sans Mono (32px, with spinner Unicode chars)
-lv_font_conv --font assets/DejaVuSansMono.ttf \
-  -r 0x20-0x7E,0xB7,0x2026,0x2722,0x2733,0x2736,0x273B,0x273D \
-  --size 32 --format lvgl --bpp 4 --no-compress \
-  -o firmware/src/font_mono_32.c --lv-include "lvgl.h"
 ```
 
-**Important:** `lv_font_conv` v1.5.3 outputs LVGL 8 format. Each generated file must be patched for LVGL 9 compatibility:
+**Important:** `lv_font_conv` outputs LVGL 8 format. Each generated file must be patched for LVGL 9:
 
-1. Remove `#if LVGL_VERSION_MAJOR >= 8` guards around `font_dsc` and the font struct
+1. Remove `#if LVGL_VERSION_MAJOR >= 8` guards
 2. Remove the `.cache` field from `font_dsc`
-3. Add `.release_glyph = NULL`, `.kerning = 0`, `.static_bitmap = 0` to the font struct
-4. Add `.fallback = NULL`, `.user_data = NULL` to the font struct
+3. Add `.release_glyph = NULL`, `.kerning = 0`, `.static_bitmap = 0`, `.fallback = NULL`, `.user_data = NULL` to the font struct
 
-Without these patches, fonts compile but render as invisible.
+Without these patches, fonts compile but render invisible.
 
 ## Converting Lucide icons
-
-The UI uses a small set of [Lucide](https://lucide.dev) icons (bluetooth + battery states) converted to RGB565 / RGB565A8 C arrays for LVGL.
 
 ```bash
 node tools/png_to_lvgl.js assets/icon_bluetooth_48.png icon_bluetooth_data ICON_BLUETOOTH_WIDTH ICON_BLUETOOTH_HEIGHT
 ```
 
-Default tint is white (`0xFFFFFF`); Lucide PNGs ship as black-on-transparent and would render invisible against the dark UI without it. Pass `--no-tint` for pre-coloured artwork like the logo. Battery icons use RGB565A8 (alpha plane) so they blend cleanly over the splash; the rest are baked RGB565 over the panel colour. Paste the converter output into `firmware/src/icons.h`.
+Default tint is white (`0xFFFFFF`); Lucide PNGs ship as black-on-transparent. Pass `--no-tint` for pre-coloured artwork.
 
 ## Splash animations
 
-The animations come from [claudepix.vercel.app](https://claudepix.vercel.app),
-a library of Clawd sprites. `tools/scrape_claudepix.js` evaluates the
-site's JavaScript in a Node VM to pull out frame data and palettes, then
-`tools/convert_to_c.js` turns everything into RGB565 C arrays and writes
-`firmware/src/splash_animations.h`.
-
-To re-pull (e.g. when the source library updates):
+Animations come from [claudepix.vercel.app](https://claudepix.vercel.app):
 
 ```bash
 node tools/scrape_claudepix.js
@@ -189,10 +119,10 @@ See `tools/README.md` for details.
 
 ## Credits
 
-- Pixel-art Clawd animation by [@amaanbuilds](https://x.com/amaanbuilds), sourced from [claudepix.vercel.app](https://claudepix.vercel.app). Frame data and palettes scraped + converted by the tooling in `tools/`.
-- Lucide icon set ([lucide.dev](https://lucide.dev), MIT) for bluetooth and battery UI glyphs.
+- Pixel-art Clawd animations by [@amaanbuilds](https://x.com/amaanbuilds), sourced from [claudepix.vercel.app](https://claudepix.vercel.app).
+- Lucide icon set ([lucide.dev](https://lucide.dev), MIT).
 - Anthropic brand fonts (Tiempos Text, Styrene B) — see licensing warning below.
 
 ## Licensing gray area warning
 
-The software in this repository uses and adheres to the Anthropic brand guidelines and uses the same proprietary fonts that Anthropic has a licnese for but this software uses without permission as well as using assets from Anthropic such as the copyrighted Clawd mascot so even though the code in this repo is non-proprietary I will not license it myself under a copyleft license since this repo includes proprietary fonts and copyrighted assets. Please be aware of this if you fork or copy the code from this repo. **You have been warned!**
+The software in this repository uses and adheres to the Anthropic brand guidelines and uses the same proprietary fonts that Anthropic has a license for but this software uses without permission as well as using assets from Anthropic such as the copyrighted Clawd mascot, so even though the code in this repo is non-proprietary I will not license it under a copyleft license since this repo includes proprietary fonts and copyrighted assets. Please be aware of this if you fork or copy the code from this repo. **You have been warned!**
