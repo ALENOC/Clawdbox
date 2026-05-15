@@ -1,6 +1,7 @@
 #include "ui.h"
 #include "splash.h"
 #include "wifi_cfg.h"
+#include "qr_render.h"
 #include <Arduino.h>
 #include <lvgl.h>
 #include "logo.h"
@@ -55,6 +56,13 @@ static lv_obj_t* net_container;
 static lv_obj_t* lbl_net_status;
 static lv_obj_t* lbl_net_ssid;
 static lv_obj_t* lbl_net_ip;
+
+// ---- Pair screen widgets ----
+static lv_obj_t* pair_container;
+static lv_obj_t* pair_qr_img;
+static lv_obj_t* lbl_pair_lan;
+static lv_obj_t* lbl_pair_status;
+static String    pair_cur_auth;
 
 // ---- Battery indicator (shared, on top) ----
 static lv_obj_t* battery_img;
@@ -351,6 +359,51 @@ static void init_network_screen(lv_obj_t* scr) {
     lv_obj_add_flag(net_container, LV_OBJ_FLAG_HIDDEN);
 }
 
+// ======== Pair Screen ========
+
+static void init_pair_screen(lv_obj_t* scr) {
+    pair_container = lv_obj_create(scr);
+    lv_obj_set_size(pair_container, SCR_W, SCR_H);
+    lv_obj_set_pos(pair_container, 0, 0);
+    lv_obj_set_style_bg_color(pair_container, COL_BG, 0);
+    lv_obj_set_style_bg_opa(pair_container, LV_OPA_COVER, 0);
+    lv_obj_set_style_border_width(pair_container, 0, 0);
+    lv_obj_set_style_pad_all(pair_container, 0, 0);
+    lv_obj_clear_flag(pair_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    // Vertical stack, centered. QR top, full-width URL + status beneath it.
+    lv_obj_t* lbl_title = lv_label_create(pair_container);
+    lv_label_set_text(lbl_title, "Pair Clawdmeter");
+    lv_obj_set_style_text_font(lbl_title, &FONT_TITLE, 0);
+    lv_obj_set_style_text_color(lbl_title, COL_TEXT, 0);
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 2);
+
+    // QR image, horizontally centered. Size is set by ui_pair_set() via
+    // lv_image_set_src(); recenter every refresh via the image's own align.
+    pair_qr_img = lv_image_create(pair_container);
+    lv_obj_align(pair_qr_img, LV_ALIGN_TOP_MID, 0, 28);
+
+    lbl_pair_lan = lv_label_create(pair_container);
+    lv_label_set_text(lbl_pair_lan, "...");
+    lv_obj_set_style_text_font(lbl_pair_lan, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_pair_lan, COL_TEXT, 0);
+    lv_obj_set_style_text_align(lbl_pair_lan, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(lbl_pair_lan, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(lbl_pair_lan, SCR_W - 8);
+    lv_obj_align(lbl_pair_lan, LV_ALIGN_BOTTOM_MID, 0, -28);
+
+    lbl_pair_status = lv_label_create(pair_container);
+    lv_label_set_text(lbl_pair_status, "");
+    lv_obj_set_style_text_font(lbl_pair_status, &FONT_SMALL, 0);
+    lv_obj_set_style_text_color(lbl_pair_status, COL_AMBER, 0);
+    lv_obj_set_style_text_align(lbl_pair_status, LV_TEXT_ALIGN_CENTER, 0);
+    lv_label_set_long_mode(lbl_pair_status, LV_LABEL_LONG_WRAP);
+    lv_obj_set_width(lbl_pair_status, SCR_W - 8);
+    lv_obj_align(lbl_pair_status, LV_ALIGN_BOTTOM_MID, 0, -6);
+
+    lv_obj_add_flag(pair_container, LV_OBJ_FLAG_HIDDEN);
+}
+
 // ======== Public API ========
 
 void ui_init(void) {
@@ -368,6 +421,7 @@ void ui_init(void) {
 
     init_usage_screen(scr);
     init_network_screen(scr);
+    init_pair_screen(scr);
     splash_init(scr);
 
     // Splash is touch-toggled — tap anywhere on the splash dismisses it
@@ -454,7 +508,8 @@ static void apply_battery_visibility(void) {
 // splash toggle so only the reset zone is interactive there.
 static void global_click_cb(lv_event_t* e) {
     (void)e;
-    if (ui_get_current_screen() == SCREEN_NETWORK) return;
+    screen_t s = ui_get_current_screen();
+    if (s == SCREEN_NETWORK || s == SCREEN_PAIR) return;
     ui_toggle_splash();
 }
 
@@ -468,12 +523,14 @@ static void net_reset_click_cb(lv_event_t* e) {
 void ui_show_screen(screen_t screen) {
     lv_obj_add_flag(usage_container, LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(net_container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(pair_container, LV_OBJ_FLAG_HIDDEN);
     splash_hide();
 
     switch (screen) {
     case SCREEN_SPLASH:  splash_show(); break;
     case SCREEN_USAGE:   lv_obj_clear_flag(usage_container, LV_OBJ_FLAG_HIDDEN); break;
     case SCREEN_NETWORK: lv_obj_clear_flag(net_container, LV_OBJ_FLAG_HIDDEN); break;
+    case SCREEN_PAIR:    lv_obj_clear_flag(pair_container, LV_OBJ_FLAG_HIDDEN); break;
     default: break;
     }
 
@@ -488,6 +545,8 @@ void ui_show_screen(screen_t screen) {
 }
 
 void ui_cycle_screen(void) {
+    // Disable cycling out of the pair screen — user is mid-OAuth.
+    if (current_screen == SCREEN_PAIR) return;
     screen_t next = (current_screen == SCREEN_USAGE) ? SCREEN_NETWORK : SCREEN_USAGE;
     ui_show_screen(next);
 }
@@ -515,6 +574,10 @@ void ui_update_net_status(net_state_t state, const char* ssid, const char* ip, i
         lv_label_set_text(lbl_net_status, "Setup mode");
         lv_obj_set_style_text_color(lbl_net_status, COL_ACCENT, 0);
         break;
+    case NET_STATE_PAIRING:
+        lv_label_set_text(lbl_net_status, "Pairing");
+        lv_obj_set_style_text_color(lbl_net_status, COL_ACCENT, 0);
+        break;
     case NET_STATE_FAILED:
         lv_label_set_text(lbl_net_status, "Failed");
         lv_obj_set_style_text_color(lbl_net_status, COL_RED, 0);
@@ -538,6 +601,24 @@ void ui_update_net_status(net_state_t state, const char* ssid, const char* ip, i
         static char ibuf[48];
         snprintf(ibuf, sizeof(ibuf), "IP: %s", ip);
         lv_label_set_text(lbl_net_ip, ibuf);
+    }
+}
+
+void ui_pair_set(const char* auth_url, const char* lan_url, const char* status) {
+    if (auth_url && pair_cur_auth != auth_url) {
+        pair_cur_auth = auth_url;
+        // QR fits between the title (~y=28) and the URL line (~y=190).
+        // 160-px target leaves room above and below for readable text.
+        if (qr_render(auth_url, 160) && pair_qr_img) {
+            lv_image_set_src(pair_qr_img, qr_get_image());
+            lv_obj_align(pair_qr_img, LV_ALIGN_TOP_MID, 0, 28);
+        }
+    }
+    if (lan_url && lbl_pair_lan) {
+        lv_label_set_text(lbl_pair_lan, lan_url);
+    }
+    if (status && lbl_pair_status) {
+        lv_label_set_text(lbl_pair_status, status);
     }
 }
 

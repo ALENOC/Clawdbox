@@ -45,11 +45,19 @@ bool oauth_refresh(void) {
     int code = http.POST(body);
     if (code != 200) {
         Serial.printf("oauth: refresh HTTP %d\n", code);
-        if (code > 0) {
-            String resp = http.getString();
-            Serial.printf("oauth: body: %s\n", resp.c_str());
-        }
+        String resp = (code > 0) ? http.getString() : String("");
+        if (resp.length()) Serial.printf("oauth: body: %s\n", resp.c_str());
         http.end();
+        // Permanent failures (invalid/expired refresh token) → wipe tokens so
+        // the main loop transitions to pairing instead of retrying forever.
+        if (code == 400 || code == 401) {
+            if (resp.indexOf("invalid_grant") >= 0 ||
+                resp.indexOf("invalid_request") >= 0 ||
+                resp.indexOf("unauthorized") >= 0) {
+                Serial.println("oauth: refresh token invalid, clearing tokens");
+                cfg_clear_tokens();
+            }
+        }
         return false;
     }
 

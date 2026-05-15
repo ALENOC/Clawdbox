@@ -29,8 +29,10 @@ static void begin_sta(const WifiCfg& c) {
 }
 
 void net_init(void) {
-    if (!cfg_is_provisioned()) {
-        Serial.println("net: unprovisioned, starting portal");
+    // Portal is for WiFi only. OAuth pairing happens later, in STA mode,
+    // via the on-device QR flow (pair.cpp).
+    if (!cfg_has_wifi()) {
+        Serial.println("net: no wifi config, starting portal");
         start_portal_mode();
         return;
     }

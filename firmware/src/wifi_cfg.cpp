@@ -27,9 +27,12 @@ bool cfg_load(WifiCfg* out) {
 bool cfg_save(const WifiCfg& in) {
     prefs.putString("ssid", in.ssid);
     prefs.putString("psk",  in.psk);
-    prefs.putString("at",   in.access_token);
-    prefs.putString("rt",   in.refresh_token);
-    prefs.putULong64("exp", in.expires_at_ms);
+    // Only overwrite tokens if caller supplied them — portal saves WiFi only
+    // and must not wipe tokens, and pair flow updates tokens via
+    // cfg_update_tokens() without touching ssid/psk.
+    if (in.access_token.length())  prefs.putString("at", in.access_token);
+    if (in.refresh_token.length()) prefs.putString("rt", in.refresh_token);
+    if (in.expires_at_ms != 0)     prefs.putULong64("exp", in.expires_at_ms);
     return true;
 }
 
@@ -42,9 +45,25 @@ bool cfg_is_provisioned(void) {
            prefs.getString("at",   "").length() > 0;
 }
 
+bool cfg_has_wifi(void) {
+    // isKey avoids the "NOT_FOUND" error log spam that getString triggers
+    // when called every main-loop iteration.
+    return prefs.isKey("ssid");
+}
+
+bool cfg_has_tokens(void) {
+    return prefs.isKey("at") && prefs.isKey("rt");
+}
+
 bool cfg_update_tokens(const String& access, const String& refresh, uint64_t expires_at_ms) {
     prefs.putString("at",   access);
     prefs.putString("rt",   refresh);
     prefs.putULong64("exp", expires_at_ms);
     return true;
+}
+
+void cfg_clear_tokens(void) {
+    prefs.remove("at");
+    prefs.remove("rt");
+    prefs.remove("exp");
 }

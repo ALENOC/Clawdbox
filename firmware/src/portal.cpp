@@ -12,7 +12,7 @@ static bool active = false;
 static volatile bool reboot_pending = false;
 static uint32_t reboot_at_ms = 0;
 
-// Minimal styled form. Three sections: WiFi creds, OAuth tokens, expiry.
+// WiFi-only setup. OAuth pairing happens on first boot via on-device QR.
 static const char* PAGE = R"HTML(
 <!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
@@ -22,11 +22,9 @@ static const char* PAGE = R"HTML(
  h1{font-size:20px;margin:0 0 8px}
  h2{font-size:14px;margin:20px 0 6px;color:#aaa;text-transform:uppercase;letter-spacing:.08em}
  label{display:block;font-size:13px;margin:8px 0 4px;color:#bbb}
- input,textarea{width:100%;box-sizing:border-box;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:6px;font-family:monospace;font-size:13px}
- textarea{min-height:60px}
+ input{width:100%;box-sizing:border-box;padding:8px 10px;background:#222;color:#eee;border:1px solid #333;border-radius:6px;font-family:monospace;font-size:13px}
  button{margin-top:18px;width:100%;padding:12px;background:#cc7a3a;color:#fff;border:0;border-radius:6px;font-size:15px;font-weight:600;cursor:pointer}
  .hint{font-size:12px;color:#888;margin-top:4px}
- .ok{color:#4caf50}.err{color:#f55}
  .ssid_list{display:flex;flex-direction:column;gap:4px;margin:8px 0;max-height:240px;overflow:auto}
  .ssid_row{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;background:#1d1d1d;border:1px solid #2a2a2a;border-radius:6px;cursor:pointer;font-size:13px}
  .ssid_row:hover{background:#262626;border-color:#3a3a3a}
@@ -40,11 +38,7 @@ static const char* PAGE = R"HTML(
  <div id=ssid_list class=ssid_list></div>
  <label>SSID</label><input name=ssid id=ssid_input required autocomplete=off>
  <label>Password</label><input name=psk type=password>
- <h2>Anthropic OAuth</h2>
- <div class=hint>Paste from <code>~/.claude/.credentials.json</code></div>
- <label>accessToken</label><textarea name=at required></textarea>
- <label>refreshToken</label><textarea name=rt required></textarea>
- <label>expiresAt (ms since epoch)</label><input name=exp inputmode=numeric>
+ <div class=hint>After reboot the device will display a QR code to authorize Claude.</div>
  <button type=submit>Save & reboot</button>
 </form>
 <script>
@@ -128,17 +122,16 @@ void portal_start(void) {
     });
 
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest* req) {
-        WifiCfg c;
-        if (!req->hasParam("ssid", true) || !req->hasParam("at", true) || !req->hasParam("rt", true)) {
-            req->send(400, "text/plain", "missing field");
+        if (!req->hasParam("ssid", true)) {
+            req->send(400, "text/plain", "missing ssid");
             return;
         }
-        c.ssid          = req->getParam("ssid", true)->value();
-        c.psk           = req->hasParam("psk", true) ? req->getParam("psk", true)->value() : "";
-        c.access_token  = req->getParam("at", true)->value();
-        c.refresh_token = req->getParam("rt", true)->value();
-        String exp = req->hasParam("exp", true) ? req->getParam("exp", true)->value() : "0";
-        c.expires_at_ms = strtoull(exp.c_str(), nullptr, 10);
+        WifiCfg c;
+        c.ssid = req->getParam("ssid", true)->value();
+        c.psk  = req->hasParam("psk", true) ? req->getParam("psk", true)->value() : "";
+        c.ssid.trim();
+        c.psk.trim();
+        // Leave tokens untouched (cfg_save skips empty strings).
         cfg_save(c);
         req->send(200, "text/html", "<h1>Saved. Rebooting...</h1>");
         reboot_pending = true;

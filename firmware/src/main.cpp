@@ -11,6 +11,7 @@
 #include "wifi_cfg.h"
 #include "net.h"
 #include "poll.h"
+#include "pair.h"
 
 // Physical inputs on ESP32-S3-BOX:
 //   BTN_BACK (GPIO 0, BOOT momentary)  — cycle screen / advance splash;
@@ -126,6 +127,11 @@ static void check_serial_cmd() {
             cmd_buf[cmd_pos] = '\0';
             if (strcmp(cmd_buf, "screenshot") == 0) {
                 send_screenshot();
+            } else if (strcmp(cmd_buf, "clearauth") == 0) {
+                Serial.println("clearauth: wiping tokens, rebooting");
+                cfg_clear_tokens();
+                delay(200);
+                ESP.restart();
             }
             cmd_pos = 0;
         } else if (cmd_pos < CMD_BUF_SIZE - 1) {
@@ -135,6 +141,13 @@ static void check_serial_cmd() {
 }
 
 void setup() {
+    // Backlight off before anything else — keeps panel dark through reset
+    // and through gfx->begin(), so the user never sees uninitialized framebuffer
+    // contents (white/garbage flash). Turned on at the end of setup() after
+    // the first LVGL render has painted real content.
+    pinMode(LCD_BL, OUTPUT);
+    digitalWrite(LCD_BL, LOW);
+
     Serial.begin(115200);
     delay(300);
     Serial.println("{\"ready\":true}");
@@ -160,11 +173,9 @@ void setup() {
                   sda_post, scl_post);
     Wire.begin(IIC_SDA, IIC_SCL);
 
-    // Init display
+    // Init display (backlight stays OFF until first LVGL frame is painted).
     gfx->begin();
     gfx->fillScreen(0x0000);
-    pinMode(LCD_BL, OUTPUT);
-    digitalWrite(LCD_BL, HIGH);
 
     power_init();
     imu_init();
@@ -206,6 +217,10 @@ void setup() {
     ui_update_net_status(net_get_state(), net_get_ssid(), net_get_ip(), net_get_rssi());
     ui_update_battery(power_battery_pct(), power_is_charging());
     ui_show_screen(SCREEN_SPLASH);
+
+    // Render the first frame before turning on the backlight — no white flash.
+    lv_timer_handler();
+    digitalWrite(LCD_BL, HIGH);
 
     Serial.println("Dashboard ready, connecting WiFi...");
 }
@@ -282,6 +297,29 @@ void loop() {
     }
 
     check_serial_cmd();
+
+    // Pairing state machine: when WiFi is up but tokens are missing/invalid,
+    // run OAuth pairing on-device via QR. Skips polling entirely while active.
+    {
+        static bool pair_screen_shown = false;
+        if (net_get_state() == NET_STATE_CONNECTED && !cfg_has_tokens()) {
+            if (!pair_is_active()) {
+                pair_start();
+            }
+            if (!pair_screen_shown) {
+                ui_pair_set(pair_get_auth_url(), pair_get_lan_url(), pair_get_status_msg());
+                ui_show_screen(SCREEN_PAIR);
+                pair_screen_shown = true;
+            } else {
+                // Refresh status line in case it changed (exchange progress).
+                ui_pair_set(nullptr, nullptr, pair_get_status_msg());
+            }
+            pair_tick();
+            delay(5);
+            return;
+        }
+        pair_screen_shown = false;
+    }
 
     bool updated = false;
     poll_tick(&usage, &updated);

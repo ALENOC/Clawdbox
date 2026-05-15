@@ -7,6 +7,7 @@ enum net_state_t {
     NET_STATE_CONNECTED,
     NET_STATE_FAILED,
     NET_STATE_PORTAL,
+    NET_STATE_PAIRING,
 };
 
 void net_init(void);
