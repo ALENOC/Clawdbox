@@ -336,7 +336,7 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_obj_set_style_pad_right(clock_usage_lbl, 8, 0);
     lv_obj_set_style_pad_top(clock_usage_lbl, 3, 0);
     lv_obj_set_style_pad_bottom(clock_usage_lbl, 3, 0);
-    lv_obj_align(clock_usage_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
+    lv_obj_align(clock_usage_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -1);
     lv_obj_add_flag(clock_usage_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
 }
 
@@ -702,7 +702,7 @@ void ui_init(void) {
         lv_obj_set_style_pad_right(clock_lbl, 8, 0);
         lv_obj_set_style_pad_top(clock_lbl, 3, 0);
         lv_obj_set_style_pad_bottom(clock_lbl, 3, 0);
-        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
+        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -1);
         lv_obj_add_flag(clock_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
     }
 

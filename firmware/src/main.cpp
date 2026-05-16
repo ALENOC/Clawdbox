@@ -14,6 +14,7 @@
 #include "pair.h"
 #include "backlight.h"
 #include "settings_mgr.h"
+#include "tz_auto.h"
 #include <time.h>
 
 // Physical inputs on ESP32-S3-BOX:
@@ -329,9 +330,14 @@ void loop() {
     static const char* last_ssid = "";
     static const char* last_ip   = "";
     static int last_rssi = -999;
+    static bool tz_synced = false;
     int rssi = net_get_rssi();
     if (ns != last_net_state || last_ssid != net_get_ssid() ||
         last_ip != net_get_ip() || last_rssi != rssi) {
+        if (ns == NET_STATE_CONNECTED && !tz_synced) {
+            tz_synced = true;
+            tz_auto_sync();
+        }
         last_net_state = ns;
         last_ssid = net_get_ssid();
         last_ip   = net_get_ip();
