@@ -6,6 +6,7 @@
 #include "settings_mgr.h"
 #include <Arduino.h>
 #include <lvgl.h>
+#include <time.h>
 #include "logo.h"
 #include "icons.h"
 #include "display_cfg.h"
@@ -52,6 +53,9 @@ static lv_obj_t* lbl_weekly_pct;
 static lv_obj_t* lbl_weekly_label;
 static lv_obj_t* lbl_weekly_reset;
 static lv_obj_t* lbl_anim;
+
+// ---- Splash clock overlay ----
+static lv_obj_t* clock_lbl;
 
 // ---- Network screen widgets ----
 static lv_obj_t* net_container;
@@ -632,6 +636,23 @@ void ui_init(void) {
         lv_obj_add_event_cb(splash_get_root(), global_click_cb, LV_EVENT_CLICKED, NULL);
     }
 
+    // Clock overlay on splash — bottom-center, above the animation canvas
+    if (splash_get_root()) {
+        clock_lbl = lv_label_create(splash_get_root());
+        lv_label_set_text(clock_lbl, "--:--");
+        lv_obj_set_style_text_font(clock_lbl, &FONT_MEDIUM, 0);
+        lv_obj_set_style_text_color(clock_lbl, COL_TEXT, 0);
+        lv_obj_set_style_bg_color(clock_lbl, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(clock_lbl, LV_OPA_50, 0);
+        lv_obj_set_style_radius(clock_lbl, LV_RADIUS_CIRCLE, 0);
+        lv_obj_set_style_pad_left(clock_lbl, 10, 0);
+        lv_obj_set_style_pad_right(clock_lbl, 10, 0);
+        lv_obj_set_style_pad_top(clock_lbl, 3, 0);
+        lv_obj_set_style_pad_bottom(clock_lbl, 3, 0);
+        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
+        lv_obj_add_flag(clock_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
+    }
+
     // Logo on top of all containers (inset for rounded corners)
     logo_img = lv_image_create(scr);
     lv_image_set_src(logo_img, &logo_dsc);
@@ -907,4 +928,17 @@ void ui_update_battery(int percent, bool charging) {
     }
     lv_image_set_src(battery_img, &battery_dscs[idx]);
     apply_battery_visibility();
+}
+
+void ui_tick_clock(void) {
+    if (!clock_lbl) return;
+    time_t now = time(nullptr);
+    if (now < 1000000L) return;  // NTP not synced yet
+    struct tm* t = gmtime(&now);
+    static int last_min = -1;
+    if (t->tm_min == last_min) return;
+    last_min = t->tm_min;
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%02d:%02d", t->tm_hour, t->tm_min);
+    lv_label_set_text(clock_lbl, buf);
 }
