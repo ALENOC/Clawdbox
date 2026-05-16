@@ -155,6 +155,18 @@ Default tint is white. Pass `--no-tint` for pre-coloured artwork.
 
 ---
 
+## Disclaimer
+
+This is an independent community project. It is **not affiliated with, endorsed by, or sponsored by Anthropic**.
+
+Claude™ is a trademark of Anthropic, PBC. The name "Claude" and related marks are used solely to describe compatibility and interoperability with Anthropic's API. No claim of affiliation or ownership is made.
+
+The pixel-art animations bundled in this firmware are fan-made artwork sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and are not official Anthropic assets. If you are Anthropic and have concerns about any content in this repository, please open an issue.
+
+This software is provided under the [MIT License](LICENSE) with no warranty of any kind.
+
+---
+
 ## Credits
 
 - Inspired by [Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) by [@HermannBjorgvin](https://github.com/HermannBjorgvin).
