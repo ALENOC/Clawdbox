@@ -1,6 +1,6 @@
 # clawdbox
 
-A desk-side Claude Code usage monitor running on an **Espressif ESP32-S3-BOX**.
+A desk-side Claude Code usage monitor running on an **[Espressif ESP32-S3-BOX](https://github.com/espressif/esp-box)**.
 
 Connects to WiFi and polls the Anthropic API directly — no host daemon, no companion app. OAuth tokens are obtained and refreshed on-device via a QR-code pairing flow.
 
@@ -37,7 +37,7 @@ Press **BOOT** to cycle screens. Tap anywhere on the splash to hide/show it. Lon
 
 ## Hardware
 
-- **Espressif ESP32-S3-BOX** — 320×240 IPS (ILI9342C), TT21100 capacitive touch, USB-C
+- **[Espressif ESP32-S3-BOX](https://github.com/espressif/esp-box)** — 320×240 IPS (ILI9342C), TT21100 capacitive touch, USB-C
 - USB-C cable for flashing
 
 ## Prerequisites
