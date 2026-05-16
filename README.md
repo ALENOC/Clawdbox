@@ -1,87 +1,100 @@
-# Clawdmeter
+# clawdbox
 
-A small ESP32 dashboard I made for my desk to keep an eye on Claude Code usage.
+A desk-side Claude Code usage monitor running on an **Espressif ESP32-S3-BOX**.
 
-It runs on an **Espressif ESP32-S3-BOX**, connects to your WiFi, and polls the Anthropic API directly for rate-limit utilization. No host daemon required.
+Connects to WiFi and polls the Anthropic API directly — no host daemon, no companion app. OAuth tokens are obtained and refreshed on-device via a QR-code pairing flow.
 
-The splash screen plays pixel-art Clawd animations that get busier when your usage rate climbs.
+The splash screen plays pixel-art Clawd animations sourced from [claudepix](https://claudepix.vercel.app). Animation intensity tracks your live usage rate.
 
-The Clawd animations come from [claudepix](https://claudepix.vercel.app), [@amaanbuilds](https://x.com/amaanbuilds)'s library of pixel-art Clawd sprites, check it out, it's lovely.
+---
 
 ## Screens
 
-The device boots into the splash and stays there until you press the BOOT button, which cycles between Usage and Network. Tap the screen anywhere (except the Reset zone on the Network screen) to flip back to the splash; tap again to dismiss it.
+| Screen | Description |
+|--------|-------------|
+| **Splash** | Boot screen with Clawd pixel-art animation, UTC clock, usage rate ticker |
+| **Usage** | 5h session % and 7d weekly % with progress bars, reset timers, live clock |
+| **Network** | WiFi state, IP address, OAuth status, Settings panel, Reset config zone |
 
-While the splash is up, BOOT cycles animations instead of screens.
+Press **BOOT** to cycle screens. Tap anywhere on the splash to hide/show it. Long-press BOOT (>5 s) to factory reset.
+
+---
 
 ## Hardware
 
-- Espressif ESP32-S3-BOX (320×240 IPS, ILI9342C, TT21100 cap touch)
+- **Espressif ESP32-S3-BOX** — 320×240 IPS (ILI9342C), TT21100 capacitive touch, USB-C
 - USB-C cable for flashing
 
 ## Prerequisites
 
 - [PlatformIO CLI](https://docs.platformio.org/en/latest/core/installation/index.html)
-- Claude Code with an active subscription (for OAuth tokens)
+- Active Claude Code / Anthropic subscription (OAuth tokens obtained via on-device QR flow)
 
-## Flash the firmware
+---
 
-```bash
-cd firmware
-pio run -e s3box -t upload --upload-port /dev/ttyACM0
-```
-
-Or use the helper:
+## Flash
 
 ```bash
-./flash.sh /dev/ttyACM0
+pio run -d firmware -e s3box -t upload --upload-port /dev/ttyACM0
 ```
+
+---
 
 ## First-boot setup
 
-1. After a fresh flash (or after a config reset), the device starts a WiFi access point named **`Clawdmeter-setup`** (open, no password).
-2. Connect a phone or laptop to that AP. Most OSes auto-open the captive portal at `http://192.168.4.1/`; if not, browse there manually.
-3. Fill the form:
-   - **SSID / Password** — your home WiFi
-   - **accessToken / refreshToken / expiresAt** — copy from `~/.claude/.credentials.json` on a host that's logged in to Claude Code
-4. Submit. The device reboots and connects to your WiFi.
-5. From then on, the device refreshes its OAuth token autonomously every ~hour.
+1. Fresh flash → device starts AP **`Clawdmeter-setup`** (open, no password).
+2. Connect to the AP; captive portal opens at `http://192.168.4.1/`.
+3. Enter SSID and WiFi password. Submit.
+4. Device reboots into STA mode and displays a **QR code** on screen.
+5. Scan the QR with a phone browser → Anthropic OAuth login page opens.
+6. Authorise. Tokens are pushed back to the device automatically.
+7. From now on the device refreshes tokens autonomously (~every 15 min).
 
-## Reset
+---
 
-- **Reset config** tap zone on the Network screen — clears NVS and reboots into setup AP.
-- Or long-press the **BOOT** button for >5 seconds.
+## Settings (Network screen)
 
-## Security note
+| Setting | Description |
+|---------|-------------|
+| **Backlight** | PWM brightness slider |
+| **Auto-standby** | Dim display after configurable idle timeout |
+| **Night mode** | Scheduled low-brightness window |
+| **Timezone** | UTC offset (±h); auto-detected from IP on first WiFi connect via ip-api.com |
 
-OAuth tokens are stored in NVS in plaintext. The device has no remote attack surface, but anyone with USB access can extract NVS contents with `esptool.py read_flash`. **Before lending, gifting, or recycling the device, run a config reset** (long-press BOOT >5s or use the Reset config tap zone) and revoke the token at <https://console.anthropic.com>.
+---
 
 ## How it works
 
-1. Firmware connects to WiFi using credentials saved in NVS.
-2. NTP sync sets the clock (needed for OAuth expiry math).
-3. Every 60 s, the device POSTs a 1-token probe to `https://api.anthropic.com/v1/messages` and reads rate-limit headers (`anthropic-ratelimit-unified-5h-utilization` and friends) — same trick the host daemon used to play.
-4. When the saved access token nears expiry, the device hits `https://console.anthropic.com/v1/oauth/token` with its refresh token and persists the rotated pair.
-5. UI tracks the rate of change of session % over a sliding window and picks splash animations from the matching mood group.
+1. Connects to WiFi; NTP syncs the clock.
+2. Timezone auto-detected via `http://ip-api.com/json` on first connect; saved to NVS.
+3. Every 60 s: POST 1-token probe to `https://api.anthropic.com/v1/messages`, read rate-limit headers (`anthropic-ratelimit-unified-5h-utilization`, `-5h-reset`, `-7d-utilization`, `-7d-reset`).
+4. OAuth token nearing expiry → POST to `https://console.anthropic.com/v1/oauth/token` with refresh token; rotated pair persisted to NVS.
+5. Splash animation group selected by current usage-rate (usage % change over sliding window).
+
+---
 
 ## Physical buttons
 
-| Button       | GPIO   | Function                                                       |
-| ------------ | ------ | -------------------------------------------------------------- |
-| **BOOT**     | GPIO 0 | Cycle screens / advance splash; long-press (>5s) → reset config |
-| **Mute slider** | GPIO 1 | Manual poll trigger                                            |
+| Button | GPIO | Function |
+|--------|------|----------|
+| **BOOT** | 0 | Cycle screens; long-press >5 s → factory reset |
+| **Mute slider** | 1 | Manual poll trigger |
+
+---
+
+## Security note
+
+OAuth tokens are stored in NVS in plaintext. Anyone with USB access can extract them with `esptool.py read_flash`. Before lending, gifting, or recycling the device: long-press BOOT >5 s (or tap **Reset config** on the Network screen) and revoke the token at <https://console.anthropic.com>.
+
+---
 
 ## Recompiling fonts
 
-The `firmware/src/font_*.c` files are pre-compiled LVGL bitmap fonts.
+Fonts are pre-compiled LVGL 9 bitmap files in `firmware/src/font_*.c`. To regenerate:
 
 ```bash
 npm install -g lv_font_conv
-```
 
-Generate with `--no-compress` (required for LVGL 9):
-
-```bash
 for size in 28 20; do
   lv_font_conv --font assets/StyreneB-Regular.otf -r 0x20-0x7E \
     --size $size --format lvgl --bpp 4 --no-compress \
@@ -89,40 +102,27 @@ for size in 28 20; do
 done
 ```
 
-**Important:** `lv_font_conv` outputs LVGL 8 format. Each generated file must be patched for LVGL 9:
-
-1. Remove `#if LVGL_VERSION_MAJOR >= 8` guards
-2. Remove the `.cache` field from `font_dsc`
-3. Add `.release_glyph = NULL`, `.kerning = 0`, `.static_bitmap = 0`, `.fallback = NULL`, `.user_data = NULL` to the font struct
-
-Without these patches, fonts compile but render invisible.
-
-## Converting Lucide icons
-
-```bash
-node tools/png_to_lvgl.js assets/icon_bluetooth_48.png icon_bluetooth_data ICON_BLUETOOTH_WIDTH ICON_BLUETOOTH_HEIGHT
-```
-
-Default tint is white (`0xFFFFFF`); Lucide PNGs ship as black-on-transparent. Pass `--no-tint` for pre-coloured artwork.
+Each generated file needs LVGL 9 patching: remove `#if LVGL_VERSION_MAJOR >= 8` guards, drop `.cache`, add `.release_glyph`, `.kerning`, `.static_bitmap`, `.fallback`, `.user_data`.
 
 ## Splash animations
 
-Animations come from [claudepix.vercel.app](https://claudepix.vercel.app):
-
 ```bash
-node tools/scrape_claudepix.js
-node tools/convert_to_c.js
-pio run -d firmware -t upload
+node tools/scrape_claudepix.js   # fetch sprites → tools/claudepix_data/*.json
+node tools/convert_to_c.js       # → firmware/src/splash_animations.h
 ```
 
-See `tools/README.md` for details.
+## Converting icons
+
+```bash
+node tools/png_to_lvgl.js <input.png> <symbol> [W_MACRO] [H_MACRO] [--tint=RRGGBB | --no-tint]
+```
+
+Default tint is white. Pass `--no-tint` for pre-coloured artwork.
+
+---
 
 ## Credits
 
-- Pixel-art Clawd animations by [@amaanbuilds](https://x.com/amaanbuilds), sourced from [claudepix.vercel.app](https://claudepix.vercel.app).
+- Inspired by [Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) by [@HermannBjorgvin](https://github.com/HermannBjorgvin).
+- Pixel-art Clawd animations by [@amaanbuilds](https://x.com/amaanbuilds) via [claudepix.vercel.app](https://claudepix.vercel.app).
 - Lucide icon set ([lucide.dev](https://lucide.dev), MIT).
-- Anthropic brand fonts (Tiempos Text, Styrene B) — see licensing warning below.
-
-## Licensing gray area warning
-
-The software in this repository uses and adheres to the Anthropic brand guidelines and uses the same proprietary fonts that Anthropic has a license for but this software uses without permission as well as using assets from Anthropic such as the copyrighted Clawd mascot, so even though the code in this repo is non-proprietary I will not license it under a copyleft license since this repo includes proprietary fonts and copyrighted assets. Please be aware of this if you fork or copy the code from this repo. **You have been warned!**
