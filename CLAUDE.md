@@ -1,5 +1,9 @@
 # Project context
 
+## Commit rules
+
+- **Never** add `Co-Authored-By: Claude` or any Claude/Anthropic attribution to commit messages.
+
 ESP32-S3 firmware for a desk-side Claude Code usage monitor on the **Espressif ESP32-S3-BOX** (320×240 IPS, ILI9342C, TT21100 touch). Device connects to WiFi and polls the Anthropic API directly for rate-limit utilization. No host daemon.
 
 This file is for future Claude Code sessions to bootstrap quickly. Read this first.
