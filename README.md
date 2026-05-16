@@ -16,6 +16,12 @@ The splash screen plays pixel-art Clawd animations sourced from [claudepix](http
 
 ---
 
+## Photos
+
+![Device](pictures/real_photos.png)
+
+---
+
 ## Screens
 
 | Screen | Description |
@@ -69,6 +75,25 @@ pio run -d firmware -e s3box -t upload --upload-port /dev/ttyACM0
 | **Auto-standby** | Dim display after configurable idle timeout |
 | **Night mode** | Scheduled low-brightness window |
 | **Timezone** | UTC offset (±h); auto-detected from IP on first WiFi connect via ip-api.com |
+
+---
+
+## Why WiFi, not Bluetooth
+
+The obvious alternative — BLE HID or a custom BLE characteristic paired to the host — has a fundamental flaw: it requires the host to be awake, unlocked, and running a companion daemon to push data. The moment you lock your screen, close the lid, or switch machines, the link breaks and the monitor goes stale.
+
+WiFi with direct API polling sidesteps all of that:
+
+| | WiFi (this device) | Bluetooth / USB HID |
+|---|---|---|
+| **Host dependency** | None — polls Anthropic directly | Requires companion app on every host |
+| **Works when host sleeps** | Yes | No |
+| **Multi-machine** | Yes — follows your account, not your laptop | No — tied to the paired host |
+| **Rate-limit data source** | Official API response headers | Would need IPC from Claude Code CLI |
+| **Token refresh** | On-device, autonomous | Host must relay credentials |
+| **Setup friction** | One-time portal + OAuth | Pair per machine, install daemon |
+
+The trade-off is that WiFi requires network access and exposes OAuth tokens on the device. See the [Security note](#security-note) below.
 
 ---
 
