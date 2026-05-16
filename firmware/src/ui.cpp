@@ -641,15 +641,15 @@ void ui_init(void) {
         clock_lbl = lv_label_create(splash_get_root());
         lv_label_set_text(clock_lbl, "--:--");
         lv_obj_set_style_text_font(clock_lbl, &FONT_MEDIUM, 0);
-        lv_obj_set_style_text_color(clock_lbl, COL_TEXT, 0);
+        lv_obj_set_style_text_color(clock_lbl, COL_DIM, 0);
         lv_obj_set_style_bg_color(clock_lbl, lv_color_hex(0x000000), 0);
         lv_obj_set_style_bg_opa(clock_lbl, LV_OPA_50, 0);
         lv_obj_set_style_radius(clock_lbl, LV_RADIUS_CIRCLE, 0);
-        lv_obj_set_style_pad_left(clock_lbl, 10, 0);
-        lv_obj_set_style_pad_right(clock_lbl, 10, 0);
+        lv_obj_set_style_pad_left(clock_lbl, 8, 0);
+        lv_obj_set_style_pad_right(clock_lbl, 8, 0);
         lv_obj_set_style_pad_top(clock_lbl, 3, 0);
         lv_obj_set_style_pad_bottom(clock_lbl, 3, 0);
-        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_MID, 0, -8);
+        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_RIGHT, -MARGIN, -6);
         lv_obj_add_flag(clock_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
     }
 

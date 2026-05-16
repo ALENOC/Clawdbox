@@ -266,7 +266,9 @@ void loop() {
     {
         static bool back_was = false, fwd_was = false;
         static uint32_t back_down_ms = 0;
-        static bool long_fired = false;
+        // Start true: GPIO0 goes LOW during USB flash/boot-mode then releases,
+        // which would look like a button press+release and navigate away from splash.
+        static bool long_fired = true;
         bool back_now = (digitalRead(BTN_BACK) == LOW);
         bool fwd_now  = (digitalRead(BTN_FWD)  == LOW);
 
