@@ -28,6 +28,7 @@ static int reset_minutes_from_epoch(const String& s) {
     if (s.length() == 0) return -1;
     uint32_t reset = (uint32_t)strtoul(s.c_str(), nullptr, 10);
     time_t now = time(nullptr);
+    if (now < 1704067200) return -1;  // NTP not synced yet (pre-2024)
     if (reset <= (uint32_t)now) return 0;
     return (int)((reset - now) / 60);
 }
