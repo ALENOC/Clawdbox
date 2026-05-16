@@ -166,7 +166,7 @@ Claude™ and Anthropic™ are trademarks of Anthropic, PBC. All rights reserved
 The pixel-art animations included in this firmware are fan-made, community-created artwork sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets. The author of this project makes no claim of ownership over these works. Rights holders who wish to request removal may open an issue and content will be removed promptly.
 
 ### API usage and costs
-This device makes real API calls to `api.anthropic.com`. Each poll consumes tokens and counts against your account's rate limits and billing. **You are solely responsible** for any charges, quota consumption, or ToS violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying.
+This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers — actual token consumption is negligible (≈ 2 tokens/minute). However, **you are solely responsible** for any charges, quota consumption, or ToS violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying.
 
 ### Security
 OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely responsible** for the physical security of the device and for revoking credentials if the device is lost, stolen, transferred, or discarded.
