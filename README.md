@@ -8,13 +8,22 @@ The splash screen plays pixel-art Clawd animations sourced from [claudepix](http
 
 ---
 
+## Screenshots
+
+| Splash | Usage | Network | Settings |
+|--------|-------|---------|----------|
+| ![Splash](screenshots/splash.png) | ![Usage](screenshots/usage.png) | ![Network](screenshots/network.png) | ![Settings](screenshots/settings.png) |
+
+---
+
 ## Screens
 
 | Screen | Description |
 |--------|-------------|
 | **Splash** | Boot screen with Clawd pixel-art animation, UTC clock, usage rate ticker |
 | **Usage** | 5h session % and 7d weekly % with progress bars, reset timers, live clock |
-| **Network** | WiFi state, IP address, OAuth status, Settings panel, Reset config zone |
+| **Network** | WiFi state, IP address, OAuth status, Reset config zone |
+| **Settings** | Brightness, auto-standby, night mode schedule, timezone offset |
 
 Press **BOOT** to cycle screens. Tap anywhere on the splash to hide/show it. Long-press BOOT (>5 s) to factory reset.
 
