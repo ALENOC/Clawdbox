@@ -157,13 +157,22 @@ Default tint is white. Pass `--no-tint` for pre-coloured artwork.
 
 ## Disclaimer
 
-This is an independent community project. It is **not affiliated with, endorsed by, or sponsored by Anthropic**.
+**This project is an independent, unofficial community tool. It is not affiliated with, endorsed by, sponsored by, or in any way connected to Anthropic, PBC.**
 
-Claude™ is a trademark of Anthropic, PBC. The name "Claude" and related marks are used solely to describe compatibility and interoperability with Anthropic's API. No claim of affiliation or ownership is made.
+### Trademarks
+Claude™ and Anthropic™ are trademarks of Anthropic, PBC. All rights reserved by their respective owners. Any use of these names in this repository is solely for the purpose of describing interoperability with Anthropic's publicly available API. No trademark licence is claimed or implied.
 
-The pixel-art animations bundled in this firmware are fan-made artwork sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and are not official Anthropic assets. If you are Anthropic and have concerns about any content in this repository, please open an issue.
+### Artwork
+The pixel-art animations included in this firmware are fan-made, community-created artwork sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets. The author of this project makes no claim of ownership over these works. Rights holders who wish to request removal may open an issue and content will be removed promptly.
 
-This software is provided under the [MIT License](LICENSE) with no warranty of any kind.
+### API usage and costs
+This device makes real API calls to `api.anthropic.com`. Each poll consumes tokens and counts against your account's rate limits and billing. **You are solely responsible** for any charges, quota consumption, or ToS violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying.
+
+### Security
+OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely responsible** for the physical security of the device and for revoking credentials if the device is lost, stolen, transferred, or discarded.
+
+### No warranty / limitation of liability
+This software is provided "as is", without warranty of any kind, express or implied. The author shall not be liable for any claim, damages, or other liability arising from the use of this software. See the full [MIT License](LICENSE).
 
 ---
 
