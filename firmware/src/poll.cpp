@@ -2,6 +2,7 @@
 #include "wifi_cfg.h"
 #include "oauth.h"
 #include "net.h"
+#include "anthropic_ca.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -41,7 +42,7 @@ static bool do_poll(UsageData* out) {
     if (!cfg_load(&c)) return false;
 
     WiFiClientSecure client;
-    client.setInsecure();  // FIXME: pin Anthropic CA
+    client.setCACert(ANTHROPIC_ROOT_CA);
 
     HTTPClient http;
     if (!http.begin(client, API_URL)) {

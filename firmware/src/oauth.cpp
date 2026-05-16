@@ -1,5 +1,6 @@
 #include "oauth.h"
 #include "wifi_cfg.h"
+#include "anthropic_ca.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -25,8 +26,7 @@ bool oauth_refresh(void) {
     }
 
     WiFiClientSecure client;
-    // FIXME: pin Anthropic CA. Acceptable on home WiFi; revisit before shipping.
-    client.setInsecure();
+    client.setCACert(ANTHROPIC_ROOT_CA);
 
     HTTPClient http;
     if (!http.begin(client, TOKEN_URL)) {

@@ -1,5 +1,6 @@
 #include "pair.h"
 #include "wifi_cfg.h"
+#include "anthropic_ca.h"
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
@@ -170,7 +171,7 @@ void pair_start(void) {
 static bool exchange_code(const String& code) {
     Serial.println("pair: exchanging code");
     WiFiClientSecure client;
-    client.setInsecure();
+    client.setCACert(ANTHROPIC_ROOT_CA);
     HTTPClient http;
     if (!http.begin(client, TOKEN_URL)) {
         status_msg = "http.begin failed";
