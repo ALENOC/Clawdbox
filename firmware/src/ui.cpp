@@ -2,6 +2,8 @@
 #include "splash.h"
 #include "wifi_cfg.h"
 #include "qr_render.h"
+#include "backlight.h"
+#include "settings_mgr.h"
 #include <Arduino.h>
 #include <lvgl.h>
 #include "logo.h"
@@ -56,6 +58,21 @@ static lv_obj_t* net_container;
 static lv_obj_t* lbl_net_status;
 static lv_obj_t* lbl_net_ssid;
 static lv_obj_t* lbl_net_ip;
+static lv_obj_t* lbl_net_rssi;
+
+// ---- Settings screen widgets ----
+static lv_obj_t* settings_container;
+static lv_obj_t* settings_bl_slider;
+static lv_obj_t* settings_bl_lbl;
+static lv_obj_t* settings_standby_sw;
+static lv_obj_t* settings_standby_lbl;
+static lv_obj_t* settings_night_sw;
+static lv_obj_t* settings_night_start_lbl;
+static lv_obj_t* settings_night_end_lbl;
+
+static const uint16_t standby_options[] = {5, 10, 15, 20, 30, 45, 60};
+#define STANDBY_OPT_COUNT 7
+static int settings_standby_opt_idx = 1;  // default: 10 min
 
 // ---- Pair screen widgets ----
 static lv_obj_t* pair_container;
@@ -151,6 +168,12 @@ static void format_reset_time(int mins, char* buf, size_t len) {
 // Forward decls — callbacks defined near ui_show_screen below
 static void global_click_cb(lv_event_t* e);
 static void net_reset_click_cb(lv_event_t* e);
+static void bl_slider_cb(lv_event_t* e);
+static void standby_sw_cb(lv_event_t* e);
+static void standby_btn_cb(lv_event_t* e);
+static void night_sw_cb(lv_event_t* e);
+static void night_start_btn_cb(lv_event_t* e);
+static void night_end_btn_cb(lv_event_t* e);
 
 static lv_obj_t* make_panel(lv_obj_t* parent, int x, int y, int w, int h) {
     lv_obj_t* panel = lv_obj_create(parent);
@@ -307,29 +330,34 @@ static void init_network_screen(lv_obj_t* scr) {
     lv_obj_set_style_text_color(lbl_net_title, COL_TEXT, 0);
     lv_obj_align(lbl_net_title, LV_ALIGN_TOP_MID, 16, TITLE_Y);
 
-    const int INFO_H  = 100;
+    // 4 rows: status / ssid / ip / signal — each 24px, with 4px gaps
+    const int INFO_H  = 116;
     const int RESET_H = 60;
-    const int SSID_Y  = 38;
-    const int IP_Y    = 62;
     lv_obj_t* p_info = make_panel(net_container, MARGIN, CONTENT_Y, CONTENT_W, INFO_H);
 
     lbl_net_status = lv_label_create(p_info);
     lv_label_set_text(lbl_net_status, "Initializing...");
     lv_obj_set_style_text_font(lbl_net_status, &FONT_MEDIUM, 0);
     lv_obj_set_style_text_color(lbl_net_status, COL_DIM, 0);
-    lv_obj_set_pos(lbl_net_status, 0, 2);
+    lv_obj_set_pos(lbl_net_status, 0, 0);
 
     lbl_net_ssid = lv_label_create(p_info);
     lv_label_set_text(lbl_net_ssid, "SSID: ---");
     lv_obj_set_style_text_font(lbl_net_ssid, &FONT_SMALL, 0);
     lv_obj_set_style_text_color(lbl_net_ssid, COL_DIM, 0);
-    lv_obj_set_pos(lbl_net_ssid, 0, SSID_Y);
+    lv_obj_set_pos(lbl_net_ssid, 0, 26);
 
     lbl_net_ip = lv_label_create(p_info);
     lv_label_set_text(lbl_net_ip, "IP: ---");
     lv_obj_set_style_text_font(lbl_net_ip, &FONT_SMALL, 0);
     lv_obj_set_style_text_color(lbl_net_ip, COL_DIM, 0);
-    lv_obj_set_pos(lbl_net_ip, 0, IP_Y);
+    lv_obj_set_pos(lbl_net_ip, 0, 52);
+
+    lbl_net_rssi = lv_label_create(p_info);
+    lv_label_set_text(lbl_net_rssi, "");
+    lv_obj_set_style_text_font(lbl_net_rssi, &FONT_SMALL, 0);
+    lv_obj_set_style_text_color(lbl_net_rssi, COL_DIM, 0);
+    lv_obj_set_pos(lbl_net_rssi, 0, 78);
 
     int reset_y = CONTENT_Y + INFO_H + 8;
     lv_obj_t* reset_zone = lv_obj_create(net_container);
@@ -357,6 +385,180 @@ static void init_network_screen(lv_obj_t* scr) {
     lv_obj_set_style_text_color(reset_lbl, COL_DIM, 0);
 
     lv_obj_add_flag(net_container, LV_OBJ_FLAG_HIDDEN);
+}
+
+// ======== Settings Screen ========
+
+static lv_obj_t* make_small_btn(lv_obj_t* parent, const char* text,
+                                 lv_event_cb_t cb, void* user_data) {
+    lv_obj_t* btn = lv_obj_create(parent);
+    lv_obj_set_size(btn, 30, 28);
+    lv_obj_set_style_bg_color(btn, COL_BAR_BG, 0);
+    lv_obj_set_style_bg_opa(btn, LV_OPA_COVER, 0);
+    lv_obj_set_style_radius(btn, 6, 0);
+    lv_obj_set_style_border_width(btn, 0, 0);
+    lv_obj_set_style_pad_all(btn, 0, 0);
+    lv_obj_clear_flag(btn, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_add_flag(btn, LV_OBJ_FLAG_CLICKABLE);
+    lv_obj_add_event_cb(btn, cb, LV_EVENT_CLICKED, user_data);
+    lv_obj_t* lbl = lv_label_create(btn);
+    lv_label_set_text(lbl, text);
+    lv_obj_set_style_text_font(lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl, COL_TEXT, 0);
+    lv_obj_center(lbl);
+    return btn;
+}
+
+static void init_settings_screen(lv_obj_t* scr) {
+    const DevSettings* s = settings_get();
+
+    settings_standby_opt_idx = 1;  // fallback: 10 min
+    for (int i = 0; i < STANDBY_OPT_COUNT; i++) {
+        if (standby_options[i] == s->standby_min) {
+            settings_standby_opt_idx = i;
+            break;
+        }
+    }
+
+    settings_container = lv_obj_create(scr);
+    lv_obj_set_size(settings_container, SCR_W, SCR_H);
+    lv_obj_set_pos(settings_container, 0, 0);
+    lv_obj_set_style_bg_opa(settings_container, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(settings_container, 0, 0);
+    lv_obj_set_style_pad_all(settings_container, 0, 0);
+    lv_obj_clear_flag(settings_container, LV_OBJ_FLAG_SCROLLABLE);
+
+    lv_obj_t* lbl_title = lv_label_create(settings_container);
+    lv_label_set_text(lbl_title, "Settings");
+    lv_obj_set_style_text_font(lbl_title, &FONT_TITLE, 0);
+    lv_obj_set_style_text_color(lbl_title, COL_TEXT, 0);
+    lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 16, TITLE_Y);
+
+    // ---- Panel 1: Brightness ----
+    // h=50 (inner=40): label at y=0 (h≈20), slider bar at y=28 → knob top ≈y=22 → 2px gap
+    lv_obj_t* p_bl = make_panel(settings_container, MARGIN, CONTENT_Y, CONTENT_W, 50);
+    lv_obj_clear_flag(p_bl, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE));
+
+    lv_obj_t* lbl_bl_title = lv_label_create(p_bl);
+    lv_label_set_text(lbl_bl_title, "Brightness");
+    lv_obj_set_style_text_font(lbl_bl_title, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_bl_title, COL_TEXT, 0);
+    lv_obj_set_pos(lbl_bl_title, 0, 0);
+
+    settings_bl_lbl = lv_label_create(p_bl);
+    char pct_buf[8];
+    snprintf(pct_buf, sizeof(pct_buf), "%d%%", s->brightness * 100 / 255);
+    lv_label_set_text(settings_bl_lbl, pct_buf);
+    lv_obj_set_style_text_font(settings_bl_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(settings_bl_lbl, COL_ACCENT, 0);
+    lv_obj_align(settings_bl_lbl, LV_ALIGN_TOP_RIGHT, 0, 0);
+
+    settings_bl_slider = lv_slider_create(p_bl);
+    lv_obj_set_size(settings_bl_slider, CONTENT_W - 20, 12);
+    lv_obj_set_pos(settings_bl_slider, 0, 28);  // explicit y: label(h≈20) + 8px gap
+    lv_slider_set_range(settings_bl_slider, 5, 100);
+    lv_slider_set_value(settings_bl_slider, s->brightness * 100 / 255, LV_ANIM_OFF);
+    lv_obj_set_style_bg_color(settings_bl_slider, COL_BAR_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_bl_slider, COL_ACCENT, LV_PART_INDICATOR);
+    lv_obj_set_style_bg_color(settings_bl_slider, COL_TEXT, LV_PART_KNOB);
+    lv_obj_add_event_cb(settings_bl_slider, bl_slider_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // ---- Panel 2: Auto-standby ----
+    lv_obj_t* p_st = make_panel(settings_container, MARGIN, CONTENT_Y + 50 + 2, CONTENT_W, 76);
+    lv_obj_clear_flag(p_st, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE));
+
+    lv_obj_t* lbl_st = lv_label_create(p_st);
+    lv_label_set_text(lbl_st, "Auto-standby");
+    lv_obj_set_style_text_font(lbl_st, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_st, COL_TEXT, 0);
+    lv_obj_set_pos(lbl_st, 0, 4);
+
+    settings_standby_sw = lv_switch_create(p_st);
+    lv_obj_set_size(settings_standby_sw, 48, 24);
+    lv_obj_align(settings_standby_sw, LV_ALIGN_TOP_RIGHT, 0, 0);
+    if (s->standby_en) lv_obj_add_state(settings_standby_sw, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(settings_standby_sw, COL_BAR_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_standby_sw, COL_ACCENT,
+                              (lv_style_selector_t)(LV_PART_INDICATOR | LV_STATE_CHECKED));
+    lv_obj_add_event_cb(settings_standby_sw, standby_sw_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    lv_obj_t* lbl_after = lv_label_create(p_st);
+    lv_label_set_text(lbl_after, "After");
+    lv_obj_set_style_text_font(lbl_after, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_after, COL_DIM, 0);
+    lv_obj_set_pos(lbl_after, 0, 38);
+
+    make_small_btn(p_st, "<", standby_btn_cb, (void*)(intptr_t)-1);
+    lv_obj_set_pos(lv_obj_get_child(p_st, lv_obj_get_child_count(p_st) - 1), 60, 34);
+
+    settings_standby_lbl = lv_label_create(p_st);
+    char min_buf[12];
+    snprintf(min_buf, sizeof(min_buf), "%d min", standby_options[settings_standby_opt_idx]);
+    lv_label_set_text(settings_standby_lbl, min_buf);
+    lv_obj_set_style_text_font(settings_standby_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(settings_standby_lbl, COL_ACCENT, 0);
+    lv_obj_set_pos(settings_standby_lbl, 95, 38);
+
+    make_small_btn(p_st, ">", standby_btn_cb, (void*)(intptr_t)+1);
+    lv_obj_set_pos(lv_obj_get_child(p_st, lv_obj_get_child_count(p_st) - 1), 170, 34);
+
+    // ---- Panel 3: Night hours ----
+    lv_obj_t* p_nt = make_panel(settings_container, MARGIN,
+                                 CONTENT_Y + 50 + 2 + 76 + 2, CONTENT_W, 72);
+    lv_obj_clear_flag(p_nt, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE));
+
+    lv_obj_t* lbl_nt = lv_label_create(p_nt);
+    lv_label_set_text(lbl_nt, "Night only (UTC)");
+    lv_obj_set_style_text_font(lbl_nt, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_nt, COL_TEXT, 0);
+    lv_obj_set_pos(lbl_nt, 0, 4);
+
+    settings_night_sw = lv_switch_create(p_nt);
+    lv_obj_set_size(settings_night_sw, 48, 24);
+    lv_obj_align(settings_night_sw, LV_ALIGN_TOP_RIGHT, 0, 0);
+    if (s->night_en) lv_obj_add_state(settings_night_sw, LV_STATE_CHECKED);
+    lv_obj_set_style_bg_color(settings_night_sw, COL_BAR_BG, LV_PART_MAIN);
+    lv_obj_set_style_bg_color(settings_night_sw, COL_ACCENT,
+                              (lv_style_selector_t)(LV_PART_INDICATOR | LV_STATE_CHECKED));
+    lv_obj_add_event_cb(settings_night_sw, night_sw_cb, LV_EVENT_VALUE_CHANGED, NULL);
+
+    // Row 2: [<] HHh [>]  -  [<] HHh [>]
+    // "22h" = 3 chars, ~36px in font_20; btn=30px; gap=4px → total 30+4+36+4+30=104 per side
+    // Layout (inner width=280): 0,34,68,110,140,174,208,250
+    make_small_btn(p_nt, "<", night_start_btn_cb, (void*)(intptr_t)-1);
+    lv_obj_set_pos(lv_obj_get_child(p_nt, lv_obj_get_child_count(p_nt) - 1), 0, 36);
+
+    settings_night_start_lbl = lv_label_create(p_nt);
+    char h_buf[6];
+    snprintf(h_buf, sizeof(h_buf), "%dh", s->night_start);
+    lv_label_set_text(settings_night_start_lbl, h_buf);
+    lv_obj_set_style_text_font(settings_night_start_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(settings_night_start_lbl, COL_ACCENT, 0);
+    lv_obj_set_pos(settings_night_start_lbl, 34, 40);
+
+    make_small_btn(p_nt, ">", night_start_btn_cb, (void*)(intptr_t)+1);
+    lv_obj_set_pos(lv_obj_get_child(p_nt, lv_obj_get_child_count(p_nt) - 1), 76, 36);
+
+    lv_obj_t* lbl_sep = lv_label_create(p_nt);
+    lv_label_set_text(lbl_sep, "-");
+    lv_obj_set_style_text_font(lbl_sep, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_sep, COL_DIM, 0);
+    lv_obj_set_pos(lbl_sep, 114, 40);
+
+    make_small_btn(p_nt, "<", night_end_btn_cb, (void*)(intptr_t)-1);
+    lv_obj_set_pos(lv_obj_get_child(p_nt, lv_obj_get_child_count(p_nt) - 1), 132, 36);
+
+    settings_night_end_lbl = lv_label_create(p_nt);
+    snprintf(h_buf, sizeof(h_buf), "%dh", s->night_end);
+    lv_label_set_text(settings_night_end_lbl, h_buf);
+    lv_obj_set_style_text_font(settings_night_end_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(settings_night_end_lbl, COL_ACCENT, 0);
+    lv_obj_set_pos(settings_night_end_lbl, 166, 40);
+
+    make_small_btn(p_nt, ">", night_end_btn_cb, (void*)(intptr_t)+1);
+    lv_obj_set_pos(lv_obj_get_child(p_nt, lv_obj_get_child_count(p_nt) - 1), 208, 36);
+
+    lv_obj_add_flag(settings_container, LV_OBJ_FLAG_HIDDEN);
 }
 
 // ======== Pair Screen ========
@@ -421,6 +623,7 @@ void ui_init(void) {
 
     init_usage_screen(scr);
     init_network_screen(scr);
+    init_settings_screen(scr);
     init_pair_screen(scr);
     splash_init(scr);
 
@@ -509,7 +712,7 @@ static void apply_battery_visibility(void) {
 static void global_click_cb(lv_event_t* e) {
     (void)e;
     screen_t s = ui_get_current_screen();
-    if (s == SCREEN_NETWORK || s == SCREEN_PAIR) return;
+    if (s == SCREEN_NETWORK || s == SCREEN_SETTINGS || s == SCREEN_PAIR) return;
     ui_toggle_splash();
 }
 
@@ -520,17 +723,74 @@ static void net_reset_click_cb(lv_event_t* e) {
     ESP.restart();
 }
 
+static void bl_slider_cb(lv_event_t* e) {
+    lv_obj_t* slider = (lv_obj_t*)lv_event_get_target(e);
+    int pct = lv_slider_get_value(slider);
+    uint8_t val = (uint8_t)(pct * 255 / 100);
+    bl_set(val);
+    settings_set_brightness(val);
+    char buf[8];
+    snprintf(buf, sizeof(buf), "%d%%", pct);
+    lv_label_set_text(settings_bl_lbl, buf);
+}
+
+static void standby_sw_cb(lv_event_t* e) {
+    lv_obj_t* sw = (lv_obj_t*)lv_event_get_target(e);
+    bool en = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    settings_set_standby(en, settings_get()->standby_min);
+}
+
+static void standby_btn_cb(lv_event_t* e) {
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    settings_standby_opt_idx =
+        (settings_standby_opt_idx + dir + STANDBY_OPT_COUNT) % STANDBY_OPT_COUNT;
+    uint16_t min = standby_options[settings_standby_opt_idx];
+    settings_set_standby(settings_get()->standby_en, min);
+    char buf[12];
+    snprintf(buf, sizeof(buf), "%d min", min);
+    lv_label_set_text(settings_standby_lbl, buf);
+}
+
+static void night_sw_cb(lv_event_t* e) {
+    lv_obj_t* sw = (lv_obj_t*)lv_event_get_target(e);
+    bool en = lv_obj_has_state(sw, LV_STATE_CHECKED);
+    const DevSettings* s = settings_get();
+    settings_set_night(en, s->night_start, s->night_end);
+}
+
+static void night_start_btn_cb(lv_event_t* e) {
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    const DevSettings* s = settings_get();
+    uint8_t h = (uint8_t)((s->night_start + 24 + dir) % 24);
+    settings_set_night(s->night_en, h, s->night_end);
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%dh", h);
+    lv_label_set_text(settings_night_start_lbl, buf);
+}
+
+static void night_end_btn_cb(lv_event_t* e) {
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    const DevSettings* s = settings_get();
+    uint8_t h = (uint8_t)((s->night_end + 24 + dir) % 24);
+    settings_set_night(s->night_en, s->night_start, h);
+    char buf[6];
+    snprintf(buf, sizeof(buf), "%dh", h);
+    lv_label_set_text(settings_night_end_lbl, buf);
+}
+
 void ui_show_screen(screen_t screen) {
-    lv_obj_add_flag(usage_container, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(net_container, LV_OBJ_FLAG_HIDDEN);
-    lv_obj_add_flag(pair_container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(usage_container,    LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(net_container,      LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(settings_container, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_add_flag(pair_container,     LV_OBJ_FLAG_HIDDEN);
     splash_hide();
 
     switch (screen) {
-    case SCREEN_SPLASH:  splash_show(); break;
-    case SCREEN_USAGE:   lv_obj_clear_flag(usage_container, LV_OBJ_FLAG_HIDDEN); break;
-    case SCREEN_NETWORK: lv_obj_clear_flag(net_container, LV_OBJ_FLAG_HIDDEN); break;
-    case SCREEN_PAIR:    lv_obj_clear_flag(pair_container, LV_OBJ_FLAG_HIDDEN); break;
+    case SCREEN_SPLASH:    splash_show(); break;
+    case SCREEN_USAGE:     lv_obj_clear_flag(usage_container,    LV_OBJ_FLAG_HIDDEN); break;
+    case SCREEN_NETWORK:   lv_obj_clear_flag(net_container,      LV_OBJ_FLAG_HIDDEN); break;
+    case SCREEN_SETTINGS:  lv_obj_clear_flag(settings_container, LV_OBJ_FLAG_HIDDEN); break;
+    case SCREEN_PAIR:      lv_obj_clear_flag(pair_container,     LV_OBJ_FLAG_HIDDEN); break;
     default: break;
     }
 
@@ -545,9 +805,13 @@ void ui_show_screen(screen_t screen) {
 }
 
 void ui_cycle_screen(void) {
-    // Disable cycling out of the pair screen — user is mid-OAuth.
     if (current_screen == SCREEN_PAIR) return;
-    screen_t next = (current_screen == SCREEN_USAGE) ? SCREEN_NETWORK : SCREEN_USAGE;
+    screen_t next;
+    switch (current_screen) {
+    case SCREEN_USAGE:    next = SCREEN_NETWORK;   break;
+    case SCREEN_NETWORK:  next = SCREEN_SETTINGS;  break;
+    default:              next = SCREEN_USAGE;     break;
+    }
     ui_show_screen(next);
 }
 
@@ -590,17 +854,21 @@ void ui_update_net_status(net_state_t state, const char* ssid, const char* ip, i
 
     if (ssid) {
         static char sbuf[64];
-        if (state == NET_STATE_CONNECTED && rssi != 0) {
-            snprintf(sbuf, sizeof(sbuf), "SSID: %s (%d dBm)", ssid, rssi);
-        } else {
-            snprintf(sbuf, sizeof(sbuf), "SSID: %s", ssid);
-        }
+        snprintf(sbuf, sizeof(sbuf), "SSID: %s", ssid);
         lv_label_set_text(lbl_net_ssid, sbuf);
     }
     if (ip) {
         static char ibuf[48];
         snprintf(ibuf, sizeof(ibuf), "IP: %s", ip);
         lv_label_set_text(lbl_net_ip, ibuf);
+    }
+    {
+        static char rbuf[32];
+        if (state == NET_STATE_CONNECTED && rssi != 0)
+            snprintf(rbuf, sizeof(rbuf), "Signal: %d dBm", rssi);
+        else
+            rbuf[0] = '\0';
+        lv_label_set_text(lbl_net_rssi, rbuf);
     }
 }
 

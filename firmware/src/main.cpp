@@ -12,6 +12,9 @@
 #include "net.h"
 #include "poll.h"
 #include "pair.h"
+#include "backlight.h"
+#include "settings_mgr.h"
+#include <time.h>
 
 // Physical inputs on ESP32-S3-BOX:
 //   BTN_BACK (GPIO 0, BOOT momentary)  — cycle screen / advance splash;
@@ -52,7 +55,8 @@ static void touch_read() {
     if (tt21100_read(&tx, &ty)) {
         last_ok_ms = now;
         touch_pressed = true;
-        touch_x = tx;
+        // TT21100 X axis is mirrored relative to the panel — flip it.
+        touch_x = (LCD_WIDTH - 1) - tx;
         touch_y = ty;
     } else if (now - last_ok_ms > 80) {
         touch_pressed = false;
@@ -141,12 +145,8 @@ static void check_serial_cmd() {
 }
 
 void setup() {
-    // Backlight off before anything else — keeps panel dark through reset
-    // and through gfx->begin(), so the user never sees uninitialized framebuffer
-    // contents (white/garbage flash). Turned on at the end of setup() after
-    // the first LVGL render has painted real content.
-    pinMode(LCD_BL, OUTPUT);
-    digitalWrite(LCD_BL, LOW);
+    settings_init();
+    bl_init(settings_get()->brightness);
 
     Serial.begin(115200);
     delay(300);
@@ -220,21 +220,47 @@ void setup() {
 
     // Render the first frame before turning on the backlight — no white flash.
     lv_timer_handler();
-    digitalWrite(LCD_BL, HIGH);
+    bl_on();
 
     Serial.println("Dashboard ready, connecting WiFi...");
 }
 
 static net_state_t last_net_state = NET_STATE_INIT;
+static uint32_t    last_activity_ms = 0;  // millis of last user interaction
+
+static bool standby_allowed_now(void) {
+    const DevSettings* s = settings_get();
+    if (!s->night_en) return true;
+    time_t now = time(nullptr);
+    if (now < 1000000L) return false;  // NTP not synced yet
+    struct tm* t = gmtime(&now);
+    int h = t->tm_hour;
+    if (s->night_start <= s->night_end) {
+        return (h >= s->night_start && h < s->night_end);
+    } else {
+        return (h >= s->night_start || h < s->night_end);
+    }
+}
 
 void loop() {
     touch_read();
+
+    // Wake from standby on touch (consume the touch so it doesn't also navigate)
+    if (bl_is_standby() && touch_pressed) {
+        bl_wake();
+        last_activity_ms = millis();
+        touch_pressed = false;
+    }
+
     lv_timer_handler();
     ui_tick_anim();
     net_tick();
     power_tick();
     imu_tick();
     splash_tick();
+
+    // Track touch activity for standby timer
+    if (touch_pressed) last_activity_ms = millis();
 
     {
         static bool back_was = false, fwd_was = false;
@@ -243,25 +269,36 @@ void loop() {
         bool back_now = (digitalRead(BTN_BACK) == LOW);
         bool fwd_now  = (digitalRead(BTN_FWD)  == LOW);
 
+        if (back_now || fwd_now) last_activity_ms = millis();
+
         if (back_now != back_was) {
             if (back_now) {
                 back_down_ms = millis();
                 long_fired = false;
             } else if (!long_fired) {
-                if (ui_get_current_screen() == SCREEN_SPLASH) ui_show_screen(SCREEN_USAGE);
-                else                                          ui_cycle_screen();
+                if (bl_is_standby()) {
+                    // Button release wakes — don't also navigate
+                } else if (ui_get_current_screen() == SCREEN_SPLASH) {
+                    ui_show_screen(SCREEN_USAGE);
+                } else {
+                    ui_cycle_screen();
+                }
             }
             back_was = back_now;
         }
         if (back_now && !long_fired && millis() - back_down_ms > BTN_LONG_PRESS_MS) {
             long_fired = true;
-            Serial.println("Long-press BOOT: clearing config, rebooting");
-            cfg_clear();
-            delay(200);
-            ESP.restart();
+            if (bl_is_standby()) {
+                bl_wake();
+            } else {
+                Serial.println("Long-press BOOT: clearing config, rebooting");
+                cfg_clear();
+                delay(200);
+                ESP.restart();
+            }
         }
         if (fwd_now != fwd_was) {
-            if (fwd_now && net_get_state() == NET_STATE_CONNECTED) {
+            if (fwd_now && !bl_is_standby() && net_get_state() == NET_STATE_CONNECTED) {
                 Serial.println("Manual poll trigger");
                 if (poll_force_now(&usage)) {
                     usage_rate_sample(usage.session_pct);
@@ -269,6 +306,18 @@ void loop() {
                 }
             }
             fwd_was = fwd_now;
+        }
+    }
+
+    // Auto-standby: only fires when on the splash (animation) screen
+    {
+        const DevSettings* s = settings_get();
+        if (!bl_is_standby() && s->standby_en &&
+            ui_get_current_screen() == SCREEN_SPLASH) {
+            uint32_t timeout_ms = (uint32_t)s->standby_min * 60000UL;
+            if (millis() - last_activity_ms > timeout_ms && standby_allowed_now()) {
+                bl_standby();
+            }
         }
     }
 

@@ -6,6 +6,7 @@ enum screen_t {
     SCREEN_SPLASH,
     SCREEN_USAGE,
     SCREEN_NETWORK,
+    SCREEN_SETTINGS,
     SCREEN_PAIR,
     SCREEN_COUNT,
 };
