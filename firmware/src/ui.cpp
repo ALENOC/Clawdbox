@@ -57,6 +57,12 @@ static lv_obj_t* lbl_anim;
 // ---- Splash clock overlay ----
 static lv_obj_t* clock_lbl;
 
+// ---- Usage screen clock overlay ----
+static lv_obj_t* clock_usage_lbl;
+
+// ---- Settings: timezone label ----
+static lv_obj_t* settings_tz_lbl;
+
 // ---- Network screen widgets ----
 static lv_obj_t* net_container;
 static lv_obj_t* lbl_net_status;
@@ -178,6 +184,7 @@ static void standby_btn_cb(lv_event_t* e);
 static void night_sw_cb(lv_event_t* e);
 static void night_start_btn_cb(lv_event_t* e);
 static void night_end_btn_cb(lv_event_t* e);
+static void tz_btn_cb(lv_event_t* e);
 
 static lv_obj_t* make_panel(lv_obj_t* parent, int x, int y, int w, int h) {
     lv_obj_t* panel = lv_obj_create(parent);
@@ -314,7 +321,23 @@ static void init_usage_screen(lv_obj_t* scr) {
     lv_label_set_text(lbl_anim, "");
     lv_obj_set_style_text_font(lbl_anim, &FONT_ANIM, 0);
     lv_obj_set_style_text_color(lbl_anim, COL_ACCENT, 0);
-    lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_obj_set_width(lbl_anim, 200);
+    lv_label_set_long_mode(lbl_anim, LV_LABEL_LONG_CLIP);
+    lv_obj_align(lbl_anim, LV_ALIGN_BOTTOM_LEFT, MARGIN, -4);
+
+    clock_usage_lbl = lv_label_create(usage_container);
+    lv_label_set_text(clock_usage_lbl, "--:--");
+    lv_obj_set_style_text_font(clock_usage_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(clock_usage_lbl, COL_DIM, 0);
+    lv_obj_set_style_bg_color(clock_usage_lbl, lv_color_hex(0x000000), 0);
+    lv_obj_set_style_bg_opa(clock_usage_lbl, LV_OPA_50, 0);
+    lv_obj_set_style_radius(clock_usage_lbl, LV_RADIUS_CIRCLE, 0);
+    lv_obj_set_style_pad_left(clock_usage_lbl, 8, 0);
+    lv_obj_set_style_pad_right(clock_usage_lbl, 8, 0);
+    lv_obj_set_style_pad_top(clock_usage_lbl, 3, 0);
+    lv_obj_set_style_pad_bottom(clock_usage_lbl, 3, 0);
+    lv_obj_align(clock_usage_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
+    lv_obj_add_flag(clock_usage_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
 }
 
 // ======== Network Screen ========
@@ -430,7 +453,8 @@ static void init_settings_screen(lv_obj_t* scr) {
     lv_obj_set_style_bg_opa(settings_container, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(settings_container, 0, 0);
     lv_obj_set_style_pad_all(settings_container, 0, 0);
-    lv_obj_clear_flag(settings_container, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scroll_dir(settings_container, LV_DIR_VER);
+    lv_obj_set_scrollbar_mode(settings_container, LV_SCROLLBAR_MODE_OFF);
 
     lv_obj_t* lbl_title = lv_label_create(settings_container);
     lv_label_set_text(lbl_title, "Settings");
@@ -512,7 +536,7 @@ static void init_settings_screen(lv_obj_t* scr) {
     lv_obj_clear_flag(p_nt, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE));
 
     lv_obj_t* lbl_nt = lv_label_create(p_nt);
-    lv_label_set_text(lbl_nt, "Night only (UTC)");
+    lv_label_set_text(lbl_nt, "Night only");
     lv_obj_set_style_text_font(lbl_nt, &FONT_MEDIUM, 0);
     lv_obj_set_style_text_color(lbl_nt, COL_TEXT, 0);
     lv_obj_set_pos(lbl_nt, 0, 4);
@@ -561,6 +585,35 @@ static void init_settings_screen(lv_obj_t* scr) {
 
     make_small_btn(p_nt, ">", night_end_btn_cb, (void*)(intptr_t)+1);
     lv_obj_set_pos(lv_obj_get_child(p_nt, lv_obj_get_child_count(p_nt) - 1), 208, 36);
+
+    // ---- Panel 4: Timezone offset (scrolled into view) ----
+    int p4_y = CONTENT_Y + 50 + 2 + 76 + 2 + 72 + 2;
+    lv_obj_t* p_tz = make_panel(settings_container, MARGIN, p4_y, CONTENT_W, 48);
+    lv_obj_clear_flag(p_tz, (lv_obj_flag_t)(LV_OBJ_FLAG_CLICKABLE | LV_OBJ_FLAG_EVENT_BUBBLE));
+
+    lv_obj_t* lbl_tz_title = lv_label_create(p_tz);
+    lv_label_set_text(lbl_tz_title, "Timezone");
+    lv_obj_set_style_text_font(lbl_tz_title, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(lbl_tz_title, COL_TEXT, 0);
+    lv_obj_set_pos(lbl_tz_title, 0, 4);
+
+    make_small_btn(p_tz, "<", tz_btn_cb, (void*)(intptr_t)-1);
+    lv_obj_set_pos(lv_obj_get_child(p_tz, lv_obj_get_child_count(p_tz) - 1), 80, 14);
+
+    settings_tz_lbl = lv_label_create(p_tz);
+    {
+        char tz_buf[10];
+        int8_t tz = s->tz_offset;
+        if (tz == 0) snprintf(tz_buf, sizeof(tz_buf), "UTC");
+        else         snprintf(tz_buf, sizeof(tz_buf), "UTC%+d", (int)tz);
+        lv_label_set_text(settings_tz_lbl, tz_buf);
+    }
+    lv_obj_set_style_text_font(settings_tz_lbl, &FONT_MEDIUM, 0);
+    lv_obj_set_style_text_color(settings_tz_lbl, COL_ACCENT, 0);
+    lv_obj_set_pos(settings_tz_lbl, 115, 18);
+
+    make_small_btn(p_tz, ">", tz_btn_cb, (void*)(intptr_t)+1);
+    lv_obj_set_pos(lv_obj_get_child(p_tz, lv_obj_get_child_count(p_tz) - 1), 174, 14);
 
     lv_obj_add_flag(settings_container, LV_OBJ_FLAG_HIDDEN);
 }
@@ -649,7 +702,7 @@ void ui_init(void) {
         lv_obj_set_style_pad_right(clock_lbl, 8, 0);
         lv_obj_set_style_pad_top(clock_lbl, 3, 0);
         lv_obj_set_style_pad_bottom(clock_lbl, 3, 0);
-        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_RIGHT, -MARGIN, -6);
+        lv_obj_align(clock_lbl, LV_ALIGN_BOTTOM_RIGHT, -4, -4);
         lv_obj_add_flag(clock_lbl, LV_OBJ_FLAG_EVENT_BUBBLE);
     }
 
@@ -799,6 +852,18 @@ static void night_end_btn_cb(lv_event_t* e) {
     lv_label_set_text(settings_night_end_lbl, buf);
 }
 
+static void tz_btn_cb(lv_event_t* e) {
+    int dir = (int)(intptr_t)lv_event_get_user_data(e);
+    int8_t tz = (int8_t)(settings_get()->tz_offset + dir);
+    if (tz < -12) tz = -12;
+    if (tz >  14) tz =  14;
+    settings_set_tz_offset(tz);
+    char buf[10];
+    if (tz == 0) snprintf(buf, sizeof(buf), "UTC");
+    else         snprintf(buf, sizeof(buf), "UTC%+d", (int)tz);
+    lv_label_set_text(settings_tz_lbl, buf);
+}
+
 void ui_show_screen(screen_t screen) {
     lv_obj_add_flag(usage_container,    LV_OBJ_FLAG_HIDDEN);
     lv_obj_add_flag(net_container,      LV_OBJ_FLAG_HIDDEN);
@@ -931,14 +996,16 @@ void ui_update_battery(int percent, bool charging) {
 }
 
 void ui_tick_clock(void) {
-    if (!clock_lbl) return;
-    time_t now = time(nullptr);
-    if (now < 1000000L) return;  // NTP not synced yet
-    struct tm* t = gmtime(&now);
+    time_t raw = time(nullptr);
+    if (raw < 1000000L) return;
+    int8_t tz = settings_get()->tz_offset;
+    time_t local = raw + (int32_t)tz * 3600;
+    struct tm* t = gmtime(&local);
     static int last_min = -1;
     if (t->tm_min == last_min) return;
     last_min = t->tm_min;
     char buf[6];
     snprintf(buf, sizeof(buf), "%02d:%02d", t->tm_hour, t->tm_min);
-    lv_label_set_text(clock_lbl, buf);
+    if (clock_lbl)       lv_label_set_text(clock_lbl, buf);
+    if (clock_usage_lbl) lv_label_set_text(clock_usage_lbl, buf);
 }

@@ -12,6 +12,7 @@ void settings_init(void) {
     s_cfg.night_en     = prefs.getBool  ("night_en",     false);
     s_cfg.night_start  = prefs.getUChar ("night_start",  22);
     s_cfg.night_end    = prefs.getUChar ("night_end",    7);
+    s_cfg.tz_offset    = (int8_t)prefs.getChar("tz_off", 0);
     prefs.end();
 }
 
@@ -41,5 +42,12 @@ void settings_set_night(bool en, uint8_t start, uint8_t end) {
     prefs.putBool ("night_en",    en);
     prefs.putUChar("night_start", start);
     prefs.putUChar("night_end",   end);
+    prefs.end();
+}
+
+void settings_set_tz_offset(int8_t v) {
+    s_cfg.tz_offset = v;
+    prefs.begin("devsettings", false);
+    prefs.putChar("tz_off", v);
     prefs.end();
 }

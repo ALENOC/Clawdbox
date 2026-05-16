@@ -233,7 +233,8 @@ static bool standby_allowed_now(void) {
     if (!s->night_en) return true;
     time_t now = time(nullptr);
     if (now < 1000000L) return false;  // NTP not synced yet
-    struct tm* t = gmtime(&now);
+    time_t local = now + (int32_t)s->tz_offset * 3600;
+    struct tm* t = gmtime(&local);
     int h = t->tm_hour;
     if (s->night_start <= s->night_end) {
         return (h >= s->night_start && h < s->night_end);
