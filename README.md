@@ -77,11 +77,13 @@ pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 
 1. Fresh flash → device starts AP **`Clawdbox-setup`** (open, no password).
 2. Connect to the AP; captive portal opens at `http://192.168.4.1/`.
-3. Enter SSID and WiFi password. Submit.
-4. Device reboots into STA mode and displays a **QR code** on screen.
-5. Scan the QR with a phone browser → Anthropic OAuth login page opens.
-6. Authorise. Tokens are pushed back to the device automatically.
-7. From now on the device refreshes tokens autonomously (~every 15 min).
+3. Enter SSID and WiFi password. Submit → device reboots into STA mode.
+4. Device connects to WiFi and shows a **QR code** plus a LAN URL (`http://<device-ip>/pair`) on screen.
+5. Scan the QR → `claude.ai` OAuth authorization page opens. Authorize.
+6. After authorizing, the callback page shows a **`CODE#STATE`** string. Copy it.
+7. Navigate to `http://<device-ip>/pair` (shown on screen), paste the `CODE#STATE`, submit.
+8. Device exchanges the code for tokens (PKCE), saves them to NVS, and reboots.
+9. From now on the device refreshes tokens autonomously (~every 15 min).
 
 ---
 
