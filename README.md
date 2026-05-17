@@ -98,20 +98,24 @@ pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 
 ## Why WiFi, not Bluetooth
 
-The obvious alternative — BLE HID or a custom BLE characteristic paired to the host — has a fundamental flaw: it requires the host to be awake, unlocked, and running a companion daemon to push data. The moment you lock your screen, close the lid, or switch machines, the link breaks and the monitor goes stale.
+The [original Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) uses Bluetooth to receive usage data relayed from the host machine. This approach has a fundamental architectural flaw: **the device is completely dependent on the host being awake, unlocked, and running a companion daemon**. The moment you lock your screen, close the lid, or switch machines, the link breaks and the monitor goes stale. It also requires installing software on every machine you use.
 
-WiFi with direct API polling sidesteps all of that:
+This project takes a radically different approach: the device connects directly to the Anthropic API over WiFi, with no host involvement whatsoever.
 
-| | WiFi (this device) | Bluetooth / USB HID |
+| | WiFi — this device | Bluetooth — original Clawdmeter |
 |---|---|---|
-| **Host dependency** | None — polls Anthropic directly | Requires companion app on every host |
-| **Works when host sleeps** | Yes | No |
-| **Multi-machine** | Yes — follows your account, not your laptop | No — tied to the paired host |
-| **Rate-limit data source** | Official API response headers | Would need IPC from Claude Code CLI |
-| **Token refresh** | On-device, autonomous | Host must relay credentials |
-| **Setup friction** | One-time portal + OAuth | Pair per machine, install daemon |
+| **Host dependency** | **None** — polls Anthropic directly | Requires companion app on every host |
+| **Works when host sleeps** | **Yes** — always live | No — goes dark when host locks |
+| **Works when host is off** | **Yes** | No |
+| **Multi-machine** | **Yes** — follows your account, not your laptop | No — tied to the one paired host |
+| **Rate-limit data source** | **Official API response headers** — authoritative | Scraped from CLI — fragile, breaks on updates |
+| **Token refresh** | **On-device, autonomous** | Host must relay credentials |
+| **Setup friction** | One-time portal + OAuth QR scan | Pair per machine, install and maintain daemon |
+| **Licensing overhead** | None | Bluetooth product qualification requires **Bluetooth SIG membership and royalties** |
 
-The trade-off is that WiFi requires network access and exposes OAuth tokens on the device. See the [Security note](#security-note) below.
+The Bluetooth SIG requires that any product using the Bluetooth trademark or standard undergo a qualification and listing process. For commercial products this involves fees; even for open-source projects, the compliance burden (QDID, Declaration ID, listing) is non-trivial and constrains redistribution.
+
+WiFi with direct API polling sidesteps all of that. The only trade-off is that WiFi requires network access and OAuth tokens are stored on the device. See the [Security note](#security-note) below.
 
 ---
 
@@ -193,22 +197,25 @@ Default tint is white. Pass `--no-tint` for pre-coloured artwork.
 
 ## Disclaimer
 
-**This project is an independent, unofficial community tool. It is not affiliated with, endorsed by, sponsored by, or in any way connected to Anthropic, PBC.**
+**This project is an independent, unofficial, non-commercial community tool created for personal use. It is not affiliated with, endorsed by, sponsored by, approved by, or in any way connected to Anthropic, PBC or any of its subsidiaries or affiliates.**
+
+### Independence
+This project was developed independently, without access to any non-public information, internal APIs, or proprietary documentation belonging to Anthropic, PBC. All API usage is based solely on Anthropic's publicly documented interfaces.
 
 ### Trademarks
-Claude™ and Anthropic™ are trademarks of Anthropic, PBC. All rights reserved by their respective owners. Any use of these names in this repository is solely for the purpose of describing interoperability with Anthropic's publicly available API. No trademark licence is claimed or implied.
+Claude™ and Anthropic™ are registered trademarks of Anthropic, PBC. All rights are reserved by their respective owners. References to these names in this repository are made solely for the purpose of nominative fair use — to accurately describe interoperability with Anthropic's publicly available API — and constitute neither a claim of association nor an implied licence of any kind. No sponsorship, endorsement, or affiliation is suggested or implied.
 
 ### Artwork
-The pixel-art animations included in this firmware are fan-made, community-created artwork sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets. The author of this project makes no claim of ownership over these works. Rights holders who wish to request removal may open an issue and content will be removed promptly.
+The pixel-art animations included in this firmware are fan-made, community-created works sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets and are reproduced here solely for non-commercial, personal use under fair use principles. The author of this project asserts no ownership over these works and makes no representations regarding their intellectual property status. Use of this firmware does not grant any rights to the underlying artwork.
 
 ### API usage and costs
-This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers — actual token consumption is negligible (≈ 2 tokens/minute). However, **you are solely responsible** for any charges, quota consumption, or ToS violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying.
+This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers — actual token consumption is negligible (≈ 2 tokens/minute). **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
 
 ### Security
-OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely responsible** for the physical security of the device and for revoking credentials if the device is lost, stolen, transferred, or discarded.
+OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely and exclusively responsible** for the physical security of the device and for revoking credentials promptly if the device is lost, stolen, transferred, resold, or discarded. The author accepts no liability for unauthorised access to your Anthropic account resulting from use of this firmware.
 
 ### No warranty / limitation of liability
-This software is provided "as is", without warranty of any kind, express or implied. The author shall not be liable for any claim, damages, or other liability arising from the use of this software. See the full [MIT License](LICENSE).
+This software is provided **"as is"**, without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including but not limited to procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise), arising in any way out of the use of this software, even if advised of the possibility of such damage. See the full [MIT License](LICENSE).
 
 ---
 
