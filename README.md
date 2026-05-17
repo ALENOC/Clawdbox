@@ -140,19 +140,14 @@ WiFi with direct API polling sidesteps all of that. The only trade-off is that W
 
 ## TLS
 
-All HTTPS connections use pinned root CA certificates bundled in `firmware/src/anthropic_ca.h`:
+All HTTPS connections verify against root CA certificates in `firmware/src/anthropic_ca.h`. This file is **auto-generated at build time** by `firmware/tools/fetch_ca.py` - you never edit it by hand.
 
-| Endpoint | CA |
-|----------|----|
-| `api.anthropic.com` | GTS Root R4 (Google Trust Services) |
+| Endpoint | Root CA |
+|----------|---------|
+| `api.anthropic.com` | GlobalSign Root CA (via GTS Root R4) |
 | `console.anthropic.com` | ISRG Root X1 (Let's Encrypt) |
 
-If a TLS handshake fails after a CA rotation, refresh the cert:
-
-```bash
-openssl s_client -connect api.anthropic.com:443 -showcerts 2>/dev/null \
-  | openssl x509 -noout -text | grep -A2 "Issuer:"
-```
+The pre-build script follows the AIA chain from each endpoint to locate the correct root CA, downloads it, verifies the fingerprint, and writes the PEM bundle before compilation. If Anthropic rotates their CA, rebuilding with network access picks up the new cert automatically.
 
 ---
 
