@@ -47,6 +47,25 @@ All three Espressif ESP32-S3-BOX variants are supported:
 
 BOX-3 display driver and touch controller are detected at runtime via I2C probe (mirrors the Espressif BSP auto-detect logic).
 
+### Why ESP32-S3-BOX
+
+The ESP32-S3-BOX family is an **official Espressif product** - not a third-party board. This means a stable, well-documented BSP, long-term availability, and a known-good hardware reference for all three variants.
+
+The more important reason for a desk monitor, though, is the display technology.
+
+**IPS LCD, not AMOLED.** All BOX variants use IPS LCD panels. Competing ESP32 display boards (such as the Waveshare AMOLED series) use AMOLED. For a device that sits on your desk and is on most of the day, this matters:
+
+| | IPS LCD (this device) | AMOLED |
+|---|---|---|
+| **Burn-in / image retention** | None - backlight is uniform, pixels do not age unevenly | Organic pixels degrade under sustained static content; logos and progress bars burn in over months |
+| **Brightness decay** | Negligible over years of use | Organic emitters dim measurably over thousands of hours |
+| **Always-on viability** | Yes | No - requires aggressive screen savers, short timeouts, or content rotation to slow degradation |
+| **Replacement cost** | Low - commodity panel | Higher - proprietary AMOLED module |
+
+A usage monitor is by definition static content: the same layout, the same progress bars, the same clock position, always in the same spot on your desk. That is exactly the workload that ages AMOLED panels fastest. IPS LCD has no organic emitters and no burn-in mechanism - it will look the same in three years as it does on day one.
+
+The auto-standby and night-mode features (Settings screen) exist to reduce unnecessary backlight hours, but the display is fundamentally safe to leave on indefinitely.
+
 - USB-C cable for flashing
 
 ## Prerequisites
