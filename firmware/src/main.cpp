@@ -4,7 +4,6 @@
 #include "data.h"
 #include "ui.h"
 #include "power.h"
-#include "imu.h"
 #include "splash.h"
 #include "usage_rate.h"
 #include "touch.h"
@@ -202,7 +201,6 @@ void setup() {
     gfx->fillScreen(0x0000);
 
     power_init();
-    imu_init();
 
     // Init touch — TT21100/GT911 share RST with LCD; gfx->begin() pulsed it,
     // wait for the controller to come back up before probing.
@@ -288,7 +286,6 @@ void loop() {
     ui_tick_clock();
     net_tick();
     power_tick();
-    imu_tick();
     splash_tick();
 
     // Track touch activity for standby timer
