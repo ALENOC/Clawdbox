@@ -153,7 +153,7 @@ The pre-build script follows the AIA chain from each endpoint to locate the corr
 
 ## Security note
 
-OAuth tokens are stored in NVS in plaintext. Anyone with USB access can extract them with `esptool.py read_flash`. Before lending, gifting, or recycling the device: long-press BOOT >5 s (or tap **Reset config** on the Network screen) and revoke the token at <https://console.anthropic.com>.
+OAuth tokens are stored in NVS in plaintext. Anyone with USB access can extract them with `esptool.py read_flash`. Before lending, gifting, or recycling the device: long-press BOOT >5 s (or tap **Reset config** on the Network screen) and revoke the token at <https://claude.ai/settings/claude-code>.
 
 ---
 
@@ -207,7 +207,7 @@ The pixel-art animations included in this firmware are fan-made, community-creat
 This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers - actual token consumption is negligible (≈ 2 tokens/minute). **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
 
 ### Security
-OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely and exclusively responsible** for the physical security of the device and for revoking credentials promptly if the device is lost, stolen, transferred, resold, or discarded. The author accepts no liability for unauthorised access to your Anthropic account resulting from use of this firmware.
+OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely and exclusively responsible** for the physical security of the device and for revoking credentials promptly if the device is lost, stolen, transferred, resold, or discarded. To revoke: visit <https://claude.ai/settings/claude-code>. The author accepts no liability for unauthorised access to your Anthropic account resulting from use of this firmware.
 
 ### No warranty / limitation of liability
 This software is provided **"as is"**, without warranty of any kind, express or implied, including but not limited to warranties of merchantability, fitness for a particular purpose, and non-infringement. In no event shall the author be liable for any direct, indirect, incidental, special, exemplary, or consequential damages (including but not limited to procurement of substitute goods or services; loss of use, data, or profits; or business interruption) however caused and on any theory of liability, whether in contract, strict liability, or tort (including negligence or otherwise), arising in any way out of the use of this software, even if advised of the possibility of such damage. See the full [MIT License](LICENSE).
