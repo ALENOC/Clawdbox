@@ -276,6 +276,7 @@ void loop() {
     // Wake from standby on touch (consume the touch so it doesn't also navigate)
     if (bl_is_standby() && touch_pressed) {
         bl_wake();
+        poll_reset_timer();
         last_activity_ms = millis();
         touch_pressed = false;
     }
@@ -321,6 +322,7 @@ void loop() {
             long_fired = true;
             if (bl_is_standby()) {
                 bl_wake();
+                poll_reset_timer();
             } else {
                 Serial.println("Long-press BOOT: clearing config, rebooting");
                 cfg_clear();
@@ -347,6 +349,7 @@ void loop() {
             // Auto-wake when the night window ends and night mode is configured.
             if (s->standby_en && s->night_en && !standby_allowed_now()) {
                 bl_wake();
+                poll_reset_timer();
                 last_activity_ms = millis();
             }
         } else if (s->standby_en) {
@@ -412,7 +415,7 @@ void loop() {
     }
 
     bool updated = false;
-    poll_tick(&usage, &updated);
+    if (!bl_is_standby()) poll_tick(&usage, &updated);
     if (updated) {
         int g_before = usage_rate_group();
         usage_rate_sample(usage.session_pct);

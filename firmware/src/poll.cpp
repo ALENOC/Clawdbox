@@ -131,3 +131,7 @@ bool poll_force_now(UsageData* out) {
     }
     return false;
 }
+
+void poll_reset_timer(void) {
+    first_poll_done = false;
+}

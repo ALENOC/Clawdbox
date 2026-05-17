@@ -131,7 +131,7 @@ WiFi with direct API polling sidesteps all of that. The only trade-off is that W
 
 1. Connects to WiFi; NTP syncs the clock.
 2. Timezone auto-detected via `http://ip-api.com/json` on first connect; saved to NVS.
-3. Every 60 s: POST 1-token probe to `https://api.anthropic.com/v1/messages`, read rate-limit headers (`anthropic-ratelimit-unified-5h-utilization`, `-5h-reset`, `-7d-utilization`, `-7d-reset`).
+3. Every 60 s (while active): POST 1-token probe to `https://api.anthropic.com/v1/messages`, read rate-limit headers (`anthropic-ratelimit-unified-5h-utilization`, `-5h-reset`, `-7d-utilization`, `-7d-reset`). Polling pauses while the display is in standby; on wake, a fresh poll fires immediately.
 4. OAuth token nearing expiry → POST to `https://console.anthropic.com/v1/oauth/token` with refresh token; rotated pair persisted to NVS.
 5. Splash animation group selected by current usage-rate (usage % change over sliding window).
 
@@ -212,7 +212,7 @@ Claude™ and Anthropic™ are registered trademarks of Anthropic, PBC. All righ
 The pixel-art animations included in this firmware are fan-made, community-created works sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets and are reproduced here solely for non-commercial, personal use under fair use principles. The author of this project asserts no ownership over these works and makes no representations regarding their intellectual property status. Use of this firmware does not grant any rights to the underlying artwork.
 
 ### API usage and costs
-This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers - actual token consumption is negligible (≈ 2 tokens/minute). **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
+This device makes real API calls to `api.anthropic.com` every 60 seconds while active. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers - actual token consumption is negligible (≈ 2 tokens/minute while awake). Polling is suspended automatically while the display is in standby, so no API calls are made while the device is idle overnight. **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
 
 ### Security
 OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely and exclusively responsible** for the physical security of the device and for revoking credentials promptly if the device is lost, stolen, transferred, resold, or discarded. To revoke: visit <https://claude.ai/settings/claude-code>. The author accepts no liability for unauthorised access to your Anthropic account resulting from use of this firmware.
