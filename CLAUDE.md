@@ -58,7 +58,7 @@ The boot screen is `SCREEN_SPLASH` and only advances on a physical button press.
 ## Network architecture
 
 **First boot / unconfigured:**
-1. Device starts SoftAP `Clawdmeter-setup` (open, no PSK).
+1. Device starts SoftAP `Clawdbox-setup` (open, no PSK).
 2. Captive portal at `http://192.168.4.1/` collects SSID, WiFi password, OAuth tokens.
 3. Tokens come from `~/.claude/.credentials.json` on the host (`accessToken`, `refreshToken`, `expiresAt`). User pastes once.
 4. Saved to NVS via `Preferences`.

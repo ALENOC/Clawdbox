@@ -75,7 +75,7 @@ pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 
 ## First-boot setup
 
-1. Fresh flash → device starts AP **`Clawdmeter-setup`** (open, no password).
+1. Fresh flash → device starts AP **`Clawdbox-setup`** (open, no password).
 2. Connect to the AP; captive portal opens at `http://192.168.4.1/`.
 3. Enter SSID and WiFi password. Submit.
 4. Device reboots into STA mode and displays a **QR code** on screen.

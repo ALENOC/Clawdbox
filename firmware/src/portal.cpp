@@ -5,7 +5,7 @@
 #include <ESPAsyncWebServer.h>
 #include <ArduinoJson.h>
 
-static const char* AP_SSID = "Clawdmeter-setup";
+static const char* AP_SSID = "Clawdbox-setup";
 static AsyncWebServer server(80);
 static DNSServer dns;
 static bool active = false;
@@ -16,7 +16,7 @@ static uint32_t reboot_at_ms = 0;
 static const char* PAGE = R"HTML(
 <!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
-<title>Clawdmeter setup</title>
+<title>Clawdbox setup</title>
 <style>
  body{font-family:system-ui,sans-serif;max-width:520px;margin:24px auto;padding:0 16px;background:#111;color:#eee}
  h1{font-size:20px;margin:0 0 8px}
@@ -32,7 +32,7 @@ static const char* PAGE = R"HTML(
  .ssid_meta{color:#888;font-size:11px;font-family:monospace}
  .reload{display:inline-block;margin-left:8px;color:#cc7a3a;text-decoration:underline;cursor:pointer;font-size:12px}
 </style></head><body>
-<h1>Clawdmeter setup</h1>
+<h1>Clawdbox setup</h1>
 <form method=POST action=/save>
  <h2>WiFi <span class=hint id=scan_status>(scanning...)</span></h2>
  <div id=ssid_list class=ssid_list></div>

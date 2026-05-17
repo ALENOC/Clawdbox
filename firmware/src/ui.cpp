@@ -632,7 +632,7 @@ static void init_pair_screen(lv_obj_t* scr) {
 
     // Vertical stack, centered. QR top, full-width URL + status beneath it.
     lv_obj_t* lbl_title = lv_label_create(pair_container);
-    lv_label_set_text(lbl_title, "Pair Clawdmeter");
+    lv_label_set_text(lbl_title, "Pair Clawdbox");
     lv_obj_set_style_text_font(lbl_title, &FONT_TITLE, 0);
     lv_obj_set_style_text_color(lbl_title, COL_TEXT, 0);
     lv_obj_align(lbl_title, LV_ALIGN_TOP_MID, 0, 2);
