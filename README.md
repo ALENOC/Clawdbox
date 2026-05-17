@@ -2,7 +2,7 @@
 
 A desk-side Claude Code usage monitor running on an **[Espressif ESP32-S3-BOX](https://github.com/espressif/esp-box)**.
 
-Connects to WiFi and polls the Anthropic API directly — no host daemon, no companion app. OAuth tokens are obtained and refreshed on-device via a QR-code pairing flow.
+Connects to WiFi and polls the Anthropic API directly - no host daemon, no companion app. OAuth tokens are obtained and refreshed on-device via a QR-code pairing flow.
 
 The splash screen plays pixel-art Clawd animations sourced from [claudepix](https://claudepix.vercel.app). Animation intensity tracks your live usage rate.
 
@@ -102,13 +102,13 @@ The [original Clawdmeter](https://github.com/HermannBjorgvin/Clawdmeter) uses Bl
 
 This project takes a radically different approach: the device connects directly to the Anthropic API over WiFi, with no host involvement whatsoever.
 
-| | WiFi — this device | Bluetooth — original Clawdmeter |
+| | WiFi - this device | Bluetooth - original Clawdmeter |
 |---|---|---|
-| **Host dependency** | **None** — polls Anthropic directly | Requires companion app on every host |
-| **Works when host sleeps** | **Yes** — always live | No — goes dark when host locks |
+| **Host dependency** | **None** - polls Anthropic directly | Requires companion app on every host |
+| **Works when host sleeps** | **Yes** - always live | No - goes dark when host locks |
 | **Works when host is off** | **Yes** | No |
-| **Multi-machine** | **Yes** — follows your account, not your laptop | No — tied to the one paired host |
-| **Rate-limit data source** | **Official API response headers** — authoritative | Scraped from CLI — fragile, breaks on updates |
+| **Multi-machine** | **Yes** - follows your account, not your laptop | No - tied to the one paired host |
+| **Rate-limit data source** | **Official API response headers** - authoritative | Scraped from CLI - fragile, breaks on updates |
 | **Token refresh** | **On-device, autonomous** | Host must relay credentials |
 | **Setup friction** | One-time portal + OAuth QR scan | Pair per machine, install and maintain daemon |
 | **Licensing overhead** | None | Bluetooth product qualification requires **Bluetooth SIG membership and royalties** |
@@ -203,13 +203,13 @@ Default tint is white. Pass `--no-tint` for pre-coloured artwork.
 This project was developed independently, without access to any non-public information, internal APIs, or proprietary documentation belonging to Anthropic, PBC. All API usage is based solely on Anthropic's publicly documented interfaces.
 
 ### Trademarks
-Claude™ and Anthropic™ are registered trademarks of Anthropic, PBC. All rights are reserved by their respective owners. References to these names in this repository are made solely for the purpose of nominative fair use — to accurately describe interoperability with Anthropic's publicly available API — and constitute neither a claim of association nor an implied licence of any kind. No sponsorship, endorsement, or affiliation is suggested or implied.
+Claude™ and Anthropic™ are registered trademarks of Anthropic, PBC. All rights are reserved by their respective owners. References to these names in this repository are made solely for the purpose of nominative fair use - to accurately describe interoperability with Anthropic's publicly available API - and constitute neither a claim of association nor an implied licence of any kind. No sponsorship, endorsement, or affiliation is suggested or implied.
 
 ### Artwork
 The pixel-art animations included in this firmware are fan-made, community-created works sourced from [claudepix.vercel.app](https://claudepix.vercel.app) and attributed to [@amaanbuilds](https://x.com/amaanbuilds). They are **not** official Anthropic assets and are reproduced here solely for non-commercial, personal use under fair use principles. The author of this project asserts no ownership over these works and makes no representations regarding their intellectual property status. Use of this firmware does not grant any rights to the underlying artwork.
 
 ### API usage and costs
-This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers — actual token consumption is negligible (≈ 2 tokens/minute). **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
+This device makes real API calls to `api.anthropic.com` every 60 seconds. Each poll sends a minimal 1-token probe to `claude-haiku` solely to read rate-limit response headers - actual token consumption is negligible (≈ 2 tokens/minute). **You are solely and exclusively responsible** for any charges, quota consumption, rate-limit violations, or Terms of Service violations arising from your use of this firmware. Review Anthropic's [Usage Policy](https://www.anthropic.com/legal/usage-policy) before deploying. The author accepts no liability for any costs incurred.
 
 ### Security
 OAuth tokens are stored unencrypted in the device's NVS flash. **You are solely and exclusively responsible** for the physical security of the device and for revoking credentials promptly if the device is lost, stolen, transferred, resold, or discarded. The author accepts no liability for unauthorised access to your Anthropic account resulting from use of this firmware.
