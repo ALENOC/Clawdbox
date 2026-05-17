@@ -13,6 +13,7 @@ struct DevSettings {
 };
 
 void               settings_init(void);
+void               settings_clear(void);   // wipe NVS namespace, reset to defaults
 const DevSettings* settings_get(void);
 void               settings_set_brightness(uint8_t v);
 void               settings_set_standby(bool en, uint16_t min);

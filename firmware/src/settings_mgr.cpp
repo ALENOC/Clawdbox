@@ -16,6 +16,13 @@ void settings_init(void) {
     prefs.end();
 }
 
+void settings_clear(void) {
+    prefs.begin("devsettings", false);
+    prefs.clear();
+    prefs.end();
+    settings_init();
+}
+
 const DevSettings* settings_get(void) { return &s_cfg; }
 
 void settings_set_brightness(uint8_t v) {

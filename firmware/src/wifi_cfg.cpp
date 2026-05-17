@@ -1,4 +1,5 @@
 #include "wifi_cfg.h"
+#include "settings_mgr.h"
 #include <Preferences.h>
 
 // Tokens are stored in NVS in plaintext. Without flash encryption + secure
@@ -38,6 +39,7 @@ bool cfg_save(const WifiCfg& in) {
 
 void cfg_clear(void) {
     prefs.clear();
+    settings_clear();
 }
 
 bool cfg_is_provisioned(void) {
