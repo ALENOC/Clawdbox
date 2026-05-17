@@ -1,5 +1,5 @@
 #include "touch_tt21100.h"
-#include "display_cfg.h"
+#include "board_cfg.h"
 #include <Arduino.h>
 #include <Wire.h>
 

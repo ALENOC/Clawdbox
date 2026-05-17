@@ -1,5 +1,5 @@
 #include "backlight.h"
-#include "display_cfg.h"
+#include "board_cfg.h"
 #include <Arduino.h>
 
 #define BL_FREQ 1000

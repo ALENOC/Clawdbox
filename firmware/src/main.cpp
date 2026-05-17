@@ -7,7 +7,7 @@
 #include "imu.h"
 #include "splash.h"
 #include "usage_rate.h"
-#include "touch_tt21100.h"
+#include "touch.h"
 #include "wifi_cfg.h"
 #include "net.h"
 #include "poll.h"
@@ -17,7 +17,7 @@
 #include "tz_auto.h"
 #include <time.h>
 
-// Physical inputs on ESP32-S3-BOX:
+// Physical inputs on ESP32-S3-BOX variants:
 //   BTN_BACK (GPIO 0, BOOT momentary)  — cycle screen / advance splash;
 //                                        long-press (>5s) → clear NVS + reboot
 //   BTN_FWD  (GPIO 1, mute slider)     — manual poll trigger
@@ -25,15 +25,13 @@
 #define BTN_FWD  1
 #define BTN_LONG_PRESS_MS 5000
 
-Arduino_DataBus *bus = new Arduino_ESP32SPI(
-    LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, -1 /* MISO */, FSPI);
-// ILI9342C (native landscape, IPS, inverted colors).
-Arduino_GFX *gfx = new Arduino_ILI9342(
-    bus, LCD_RESET, 0 /* rotation 0 = native 320x240 */, false /* ips */);
+// bus and gfx are allocated in setup() after board detection.
+Arduino_DataBus *bus = nullptr;
+Arduino_GFX     *gfx = nullptr;
 
 static UsageData usage = {};
 
-// ---- Touch interrupt + shared state ----
+// ---- Touch shared state ----
 static volatile bool     touch_pressed = false;
 static volatile uint16_t touch_x = 0;
 static volatile uint16_t touch_y = 0;
@@ -43,9 +41,9 @@ static void IRAM_ATTR touch_isr(void) {
     touch_data_ready = true;
 }
 
-static void touch_read() {
-    // Poll TT21100 directly at ~30Hz. INT line on this board variant
-    // doesn't fire reliably, so we ask for a frame on a timer.
+static void poll_touch() {
+    // Poll at ~30Hz. INT line doesn't fire reliably on all BOX variants,
+    // so we ask for a frame on a timer.
     static uint32_t last_ms = 0;
     static uint32_t last_ok_ms = 0;
     uint32_t now = millis();
@@ -53,11 +51,10 @@ static void touch_read() {
     last_ms = now;
 
     uint16_t tx, ty;
-    if (tt21100_read(&tx, &ty)) {
+    if (touch_read(&tx, &ty)) {
         last_ok_ms = now;
         touch_pressed = true;
-        // TT21100 X axis is mirrored relative to the panel — flip it.
-        touch_x = (LCD_WIDTH - 1) - tx;
+        touch_x = tx;
         touch_y = ty;
     } else if (now - last_ok_ms > 80) {
         touch_pressed = false;
@@ -174,6 +171,32 @@ void setup() {
                   sda_post, scl_post);
     Wire.begin(IIC_SDA, IIC_SCL);
 
+    // Probe touch controller type — BOX-3 uses result to select display driver.
+    touch_probe();
+
+    // Allocate display bus (SPI, pins common across all BOX variants).
+    bus = new Arduino_ESP32SPI(LCD_DC, LCD_CS, LCD_SCLK, LCD_MOSI, -1 /* MISO */, FSPI);
+
+    // Select display driver based on board target.
+    // BOX-3: GT911 touch → ILI9342C panel; TT21100 (or none) → ST7789 panel.
+#if defined(BOARD_S3BOX)
+    gfx = new Arduino_ILI9342(bus, LCD_RESET, 0 /* native landscape */, false /* ips */);
+    Serial.println("display: ILI9342C (S3BOX)");
+#elif defined(BOARD_S3BOX_LITE)
+    gfx = new Arduino_ST7789(bus, LCD_RESET, 1 /* rotate 90° */, true /* ips */);
+    Serial.println("display: ST7789 (S3BOX-Lite)");
+#elif defined(BOARD_S3BOX_3)
+    if (touch_hw_type() == TOUCH_TYPE_GT911) {
+        gfx = new Arduino_ILI9342(bus, LCD_RESET, 0, false);
+        Serial.println("display: ILI9342C (S3BOX-3, GT911 panel)");
+    } else {
+        gfx = new Arduino_ST7789(bus, LCD_RESET, 1, true);
+        Serial.println("display: ST7789 (S3BOX-3, TT21100 panel)");
+    }
+#else
+    #error "No board target defined."
+#endif
+
     // Init display (backlight stays OFF until first LVGL frame is painted).
     gfx->begin();
     gfx->fillScreen(0x0000);
@@ -181,15 +204,17 @@ void setup() {
     power_init();
     imu_init();
 
-    // Init touch — TT21100 shares RST with LCD; gfx->begin() pulsed it, wait
-    // for the controller to come back up before probing.
+    // Init touch — TT21100/GT911 share RST with LCD; gfx->begin() pulsed it,
+    // wait for the controller to come back up before probing.
+#if BOARD_HAS_TOUCH
     delay(150);
-    if (!tt21100_init()) {
-        Serial.println("Touch init failed");
+    if (!touch_init()) {
+        Serial.println("touch_init failed");
     } else {
         pinMode(TP_INT, INPUT_PULLUP);
         attachInterrupt(TP_INT, touch_isr, CHANGE);
     }
+#endif
 
     lv_init();
     lv_tick_set_cb(my_tick);
@@ -229,11 +254,13 @@ void setup() {
 static net_state_t last_net_state = NET_STATE_INIT;
 static uint32_t    last_activity_ms = 0;  // millis of last user interaction
 
+// Returns true when standby/night-mode should be active right now.
+// When NTP is unsynced, treats every hour as standby-allowed (conservative).
 static bool standby_allowed_now(void) {
     const DevSettings* s = settings_get();
     if (!s->night_en) return true;
     time_t now = time(nullptr);
-    if (now < 1000000L) return false;  // NTP not synced yet
+    if (now < 1000000L) return true;  // NTP not synced: allow standby
     time_t local = now + (int32_t)s->tz_offset * 3600;
     struct tm* t = gmtime(&local);
     int h = t->tm_hour;
@@ -245,7 +272,8 @@ static bool standby_allowed_now(void) {
 }
 
 void loop() {
-    touch_read();
+#if BOARD_HAS_TOUCH
+    poll_touch();
 
     // Wake from standby on touch (consume the touch so it doesn't also navigate)
     if (bl_is_standby() && touch_pressed) {
@@ -253,6 +281,7 @@ void loop() {
         last_activity_ms = millis();
         touch_pressed = false;
     }
+#endif
 
     lv_timer_handler();
     ui_tick_anim();
@@ -314,11 +343,16 @@ void loop() {
         }
     }
 
-    // Auto-standby: only fires when on the splash (animation) screen
+    // Auto-standby / auto-wake based on night-mode schedule.
     {
         const DevSettings* s = settings_get();
-        if (!bl_is_standby() && s->standby_en &&
-            ui_get_current_screen() == SCREEN_SPLASH) {
+        if (bl_is_standby()) {
+            // Auto-wake when the night window ends and night mode is configured.
+            if (s->standby_en && s->night_en && !standby_allowed_now()) {
+                bl_wake();
+                last_activity_ms = millis();
+            }
+        } else if (s->standby_en) {
             uint32_t timeout_ms = (uint32_t)s->standby_min * 60000UL;
             if (millis() - last_activity_ms > timeout_ms && standby_allowed_now()) {
                 bl_standby();

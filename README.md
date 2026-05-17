@@ -37,7 +37,16 @@ Press **BOOT** to cycle screens. Tap anywhere on the splash to hide/show it. Lon
 
 ## Hardware
 
-- **[Espressif ESP32-S3-BOX](https://github.com/espressif/esp-box)** — 320×240 IPS (ILI9342C), TT21100 capacitive touch, USB-C
+All three Espressif ESP32-S3-BOX variants are supported:
+
+| Variant | Display | Touch | Backlight GPIO |
+|---------|---------|-------|----------------|
+| **[ESP32-S3-BOX](https://github.com/espressif/esp-box)** (original, ~2022) | ILI9342C 320×240 IPS | TT21100 | GPIO 45 |
+| **[ESP32-S3-BOX-Lite](https://github.com/espressif/esp-box)** (~2022, no touch) | ST7789 320×240 IPS | none | GPIO 45 |
+| **[ESP32-S3-BOX-3](https://github.com/espressif/esp-box)** (~2023, latest) | ILI9342C or ST7789 | GT911 or TT21100 | GPIO 47 |
+
+BOX-3 display driver and touch controller are detected at runtime via I2C probe (mirrors the Espressif BSP auto-detect logic).
+
 - USB-C cable for flashing
 
 ## Prerequisites
@@ -49,8 +58,17 @@ Press **BOOT** to cycle screens. Tap anywhere on the splash to hide/show it. Lon
 
 ## Flash
 
+Select the environment matching your hardware:
+
 ```bash
+# ESP32-S3-BOX (original)
 pio run -d firmware -e s3box -t upload --upload-port /dev/ttyACM0
+
+# ESP32-S3-BOX-Lite
+pio run -d firmware -e s3box_lite -t upload --upload-port /dev/ttyACM0
+
+# ESP32-S3-BOX-3
+pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 ```
 
 ---
@@ -72,8 +90,8 @@ pio run -d firmware -e s3box -t upload --upload-port /dev/ttyACM0
 | Setting | Description |
 |---------|-------------|
 | **Backlight** | PWM brightness slider |
-| **Auto-standby** | Dim display after configurable idle timeout |
-| **Night mode** | Scheduled low-brightness window |
+| **Auto-standby** | Dim display after configurable idle timeout (fires on any screen) |
+| **Night mode** | Scheduled low-brightness window; device auto-wakes when the window ends |
 | **Timezone** | UTC offset (±h); auto-detected from IP on first WiFi connect via ip-api.com |
 
 ---
@@ -113,6 +131,24 @@ The trade-off is that WiFi requires network access and exposes OAuth tokens on t
 |--------|------|----------|
 | **BOOT** | 0 | Cycle screens; long-press >5 s → factory reset |
 | **Mute slider** | 1 | Manual poll trigger |
+
+---
+
+## TLS
+
+All HTTPS connections use pinned root CA certificates bundled in `firmware/src/anthropic_ca.h`:
+
+| Endpoint | CA |
+|----------|----|
+| `api.anthropic.com` | GTS Root R4 (Google Trust Services) |
+| `console.anthropic.com` | ISRG Root X1 (Let's Encrypt) |
+
+If a TLS handshake fails after a CA rotation, refresh the cert:
+
+```bash
+openssl s_client -connect api.anthropic.com:443 -showcerts 2>/dev/null \
+  | openssl x509 -noout -text | grep -A2 "Issuer:"
+```
 
 ---
 
