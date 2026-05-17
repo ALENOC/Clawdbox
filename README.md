@@ -90,9 +90,17 @@ pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 | Setting | Description |
 |---------|-------------|
 | **Backlight** | PWM brightness slider |
-| **Auto-standby** | Dim display after configurable idle timeout (fires on any screen) |
-| **Night mode** | Scheduled low-brightness window; device auto-wakes when the window ends |
-| **Timezone** | UTC offset (±h); auto-detected from IP on first WiFi connect via ip-api.com |
+| **Auto-standby** | Dims display after the configured idle timeout. Must be enabled for any standby to occur. |
+| **Night only** | Restricts auto-standby to a configured hour range (e.g. 22h-7h local time). Requires **Auto-standby** to also be enabled. When both are on, the display dims after the idle timeout only if the current local time falls within the night window. Device auto-wakes when the window ends. |
+| **Timezone** | UTC offset (±h); auto-detected from IP on first WiFi connect via ip-api.com. Used by the Night only window. |
+
+**Standby logic summary:**
+
+| Auto-standby | Night only | Behaviour |
+|:---:|:---:|---|
+| off | any | Never dims |
+| on | off | Dims after idle timeout, at any hour |
+| on | on | Dims after idle timeout, only within the night window |
 
 ---
 
