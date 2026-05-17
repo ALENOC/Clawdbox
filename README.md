@@ -98,9 +98,9 @@ pio run -d firmware -e s3box3 -t upload --upload-port /dev/ttyACM0
 
 | Auto-standby | Night only | Behaviour |
 |:---:|:---:|---|
-| off | any | Never dims |
-| on | off | Dims after idle timeout, at any hour |
-| on | on | Dims after idle timeout, only within the night window |
+| off | any | Display never turns off |
+| on | off | Display turns off after idle timeout, at any hour |
+| on | on | Display turns off after idle timeout, only within the night window |
 
 ---
 
