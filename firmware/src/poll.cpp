@@ -20,8 +20,11 @@ static const char* PROBE_BODY =
     "\"messages\":[{\"role\":\"user\",\"content\":\"hi\"}]}";
 
 static int ceil_pct(float frac) {
-    int x = (int)(frac * 100.0f);
-    if ((float)x < frac * 100.0f) x++;
+    float pct = frac * 100.0f;
+    int x = (int)pct;
+    if ((float)x < pct) x++;
+    if (x < 0) return 0;
+    if (x > 100) return 100;
     return x;
 }
 
