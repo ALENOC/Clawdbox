@@ -15,7 +15,7 @@ case "$ENV" in
     ;;
 esac
 
-echo "=== Flashing clawdbox ==="
+echo "=== Flashing Clawdbox ==="
 echo "Env:  $ENV"
 echo "Port: $PORT"
 echo ""
